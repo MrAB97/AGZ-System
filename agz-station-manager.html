@@ -1,0 +1,3235 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AGZ - Station Manager & Price List</title>
+    
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AGZ Zone">
+    <meta name="theme-color" content="#060911">
+    <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22AGZ%20Game%20Zone%22%2C%22short_name%22%3A%22AGZ%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23060911%22%2C%22theme_color%22%3A%22%23060911%22%7D">
+
+    <script>
+        // The Tailwind CDN build intentionally logs a "don't use this in production" warning on load.
+        // This is a single-file offline tool with no build step by design, so the warning is expected
+        // and harmless - this just keeps the console clean instead of building a PostCSS pipeline for it.
+        (function () {
+            const originalWarn = console.warn;
+            console.warn = function (...args) {
+                if (args.some(a => typeof a === 'string' && a.includes('cdn.tailwindcss.com'))) return;
+                originalWarn.apply(console, args);
+            };
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        rajdhani: ['Rajdhani', 'sans-serif'],
+                    },
+                    colors: {
+                        neonCyan: '#00f0ff',
+                        neonPurple: '#a855f7',
+                        neonPink: '#ff007f',
+                        neonGreen: '#10b981',
+                        neonYellow: '#f59e0b',
+                        darkBg: '#060911',
+                        cardBg: '#0e1322',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #060911;
+            color: #e2e8f0;
+            font-family: 'Rajdhani', sans-serif;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 85% 50%, rgba(168, 85, 247, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 40% 85%, rgba(255, 0, 127, 0.04) 0%, transparent 40%);
+            background-attachment: fixed;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .glass-card {
+            background: rgba(14, 19, 34, 0.95);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .tab-btn {
+            color: #94a3b8;
+            border-radius: 9999px;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid #00f0ff;
+            color: #00f0ff;
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+        }
+
+        .cat-filter {
+            background: rgba(18, 24, 38, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            color: #94a3b8;
+            transition: all 0.2s ease;
+        }
+
+        .cat-filter.active {
+            background: rgba(0, 240, 255, 0.12);
+            border-color: #00f0ff;
+            color: #00f0ff;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+
+        .tourn-gametype-btn {
+            background: rgba(18, 24, 38, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            transition: all 0.2s ease;
+        }
+
+        .tourn-gametype-btn.active {
+            background: rgba(245, 158, 11, 0.12);
+            border-color: #f59e0b;
+            color: #f59e0b;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #060911; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            body * {
+                visibility: hidden !important;
+            }
+            #receiptModal, #printableReceipt, #printableReceipt * {
+                visibility: visible !important;
+            }
+            #receiptModal {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                background: transparent !important;
+                backdrop-filter: none !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: flex-start !important;
+                padding: 0 !important;
+            }
+            #printableReceipt {
+                position: relative !important;
+                left: auto !important;
+                top: auto !important;
+                transform: none !important;
+                width: 320px !important;
+                background: white !important;
+                color: black !important;
+                border: 1px dashed #000 !important;
+                padding: 16px !important;
+                box-shadow: none !important;
+                margin-top: 10px !important;
+            }
+            #printableReceipt * {
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between pb-10">
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 z-[100] bg-[#060911] flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-sm rounded-2xl p-8 border border-slate-700 shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-500 to-purple-600 p-0.5 shadow-lg shadow-cyan-500/20 mb-3">
+                    <div class="w-full h-full bg-[#060911] rounded-[14px] flex items-center justify-center font-orbitron font-black text-cyan-400 text-lg">
+                        AGZ
+                    </div>
+                </div>
+                <h1 class="font-orbitron font-black text-white text-lg">AGZ Game Zone</h1>
+                <p class="text-xs text-slate-400 mt-1">Sign in to continue</p>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-orbitron text-slate-400 mb-1 uppercase">Username</label>
+                    <input type="text" id="loginUsername" autocomplete="username" onkeydown="if(event.key==='Enter') attemptLogin()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-orbitron text-slate-400 mb-1 uppercase">Password</label>
+                    <input type="password" id="loginPassword" autocomplete="current-password" onkeydown="if(event.key==='Enter') attemptLogin()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-cyan-400">
+                </div>
+            </div>
+            <div id="loginError" class="hidden text-xs text-pink-400 bg-pink-950/40 border border-pink-500/30 rounded-xl px-3 py-2"></div>
+            <button onclick="attemptLogin()" id="loginButton" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-3 rounded-xl text-sm transition">
+                Sign In
+            </button>
+        </div>
+    </div>
+
+    <div id="appRoot" class="hidden">
+
+    <header class="sticky top-0 z-40 bg-[#060911]/90 border-b border-slate-800/80 backdrop-blur-md px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 p-0.5 shadow-lg shadow-cyan-500/20">
+                    <div class="w-full h-full bg-[#060911] rounded-[10px] flex items-center justify-center font-orbitron font-black text-cyan-400 text-base">
+                        AGZ
+                    </div>
+                </div>
+                <div>
+                    <h1 class="font-orbitron font-black text-white text-base tracking-wider leading-tight">AGZ <span class="text-xs font-semibold text-slate-400 font-sans ml-1">AceTec Game Zone</span></h1>
+                </div>
+            </div>
+
+            <!-- View Navigation Switcher -->
+            <div class="flex items-center gap-1 bg-[#0a0f1d] p-1 rounded-full border border-slate-800 overflow-x-auto">
+                <button onclick="switchView('prices')" id="navPrices" class="tab-btn active px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-list-ul"></i> <span>Price List</span>
+                </button>
+                <button onclick="switchView('calculator')" id="navCalc" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-calculator"></i> <span>Calculator</span>
+                </button>
+                <button onclick="switchView('store')" id="navStore" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-hard-drive text-amber-400"></i> <span>Media Sales</span>
+                </button>
+                <button onclick="switchView('tournaments')" id="navTournaments" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-trophy text-yellow-400"></i> <span>Tournaments</span>
+                    <span id="activeTournamentsBadge" class="hidden px-1.5 py-0.2 bg-yellow-500 text-black font-bold rounded-full text-[10px]">0</span>
+                </button>
+                <button onclick="switchView('manager')" id="navManager" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-gamepad"></i> <span>Manager</span>
+                    <span id="activeSessionsBadge" class="hidden px-1.5 py-0.2 bg-pink-500 text-white rounded-full text-[10px]">0</span>
+                </button>
+                <button onclick="switchView('customers')" id="navCustomers" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-users"></i> <span>Customers</span>
+                </button>
+                <button onclick="switchView('reports')" id="navReports" class="tab-btn px-3 py-1.5 text-xs font-orbitron font-bold uppercase transition flex items-center gap-1.5 text-slate-400 whitespace-nowrap">
+                    <i class="fa-solid fa-chart-line"></i> <span>Reports</span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div class="hidden sm:flex flex-col items-end mr-1 leading-tight">
+                    <span id="currentUserName" class="text-xs font-orbitron font-bold text-white"></span>
+                    <span id="currentUserRole" class="text-[10px] text-cyan-400 uppercase"></span>
+                </div>
+                <button onclick="openUsersModal()" id="manageUsersBtn" class="hidden w-9 h-9 rounded-full bg-[#0a0f1d] hover:bg-slate-800 text-purple-400 border border-slate-800 flex items-center justify-center transition" title="Manage Users">
+                    <i class="fa-solid fa-users-gear text-xs"></i>
+                </button>
+                <button onclick="resetDataToDefault()" id="resetDataBtn" class="w-9 h-9 rounded-full bg-[#0a0f1d] hover:bg-slate-800 text-pink-400 border border-slate-800 flex items-center justify-center transition" title="Reset Demo Data">
+                    <i class="fa-solid fa-rotate-left text-xs"></i>
+                </button>
+                <button onclick="openInstallModal()" class="w-9 h-9 rounded-full bg-[#0a0f1d] hover:bg-slate-800 text-cyan-400 border border-slate-800 flex items-center justify-center transition" title="Install App / Info">
+                    <i class="fa-solid fa-circle-info text-xs"></i>
+                </button>
+                <button onclick="logout()" class="w-9 h-9 rounded-full bg-[#0a0f1d] hover:bg-slate-800 text-slate-400 hover:text-pink-400 border border-slate-800 flex items-center justify-center transition" title="Log Out">
+                    <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 pt-6 w-full flex-grow">
+
+        <!-- VIEW 1: PRICE LIST -->
+        <section id="viewPrices" class="space-y-6">
+            <div class="text-center relative py-2">
+                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-950/60 border border-cyan-500/40 text-cyan-400 font-orbitron text-[11px] font-bold tracking-widest uppercase mb-3 shadow-lg shadow-cyan-500/10">
+                    <i class="fa-solid fa-bolt"></i> Official Rates
+                </div>
+                <h2 class="font-orbitron text-3xl sm:text-5xl font-black text-white uppercase tracking-wider">
+                    AGZ <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-purple-400">PRICE LIST</span>
+                </h2>
+                <p class="text-slate-400 text-xs sm:text-sm mt-2 font-medium">No.17, New Shopping Complex, Wetakeyawa, Gonawila • Hotline: +94 70 3238483</p>
+            </div>
+
+            <!-- Category Filter Tabs -->
+            <div class="flex flex-wrap justify-center gap-2">
+                <button onclick="filterCategory('all')" id="catAll" class="cat-filter active px-4 py-1.5 font-orbitron text-xs font-bold uppercase">All</button>
+                <button onclick="filterCategory('playstation')" id="catPs" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase"><i class="fa-brands fa-playstation text-cyan-400 mr-1.5"></i> PlayStation</button>
+                <button onclick="filterCategory('xbox')" id="catXbox" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase"><i class="fa-brands fa-xbox text-emerald-400 mr-1.5"></i> Xbox</button>
+                <button onclick="filterCategory('simulator')" id="catSim" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase"><i class="fa-solid fa-vr-cardboard text-pink-400 mr-1.5"></i> Simulators</button>
+                <button onclick="filterCategory('media')" id="catMedia" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase"><i class="fa-solid fa-compact-disc text-amber-400 mr-1.5"></i> Games & Movies</button>
+            </div>
+
+            <!-- Pricing Grid -->
+            <div id="pricingGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+
+        <!-- VIEW 2: CALCULATOR & QUICK BILL -->
+        <section id="viewCalculator" class="hidden space-y-6 max-w-2xl mx-auto">
+            <div class="text-center">
+                <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">Quick Session Calculator</h2>
+                <p class="text-slate-400 text-xs sm:text-sm mt-1">Calculate exact charges for custom time intervals instantly.</p>
+            </div>
+
+            <div class="glass-card p-6 rounded-2xl shadow-xl space-y-5">
+                <div>
+                    <label class="block text-xs font-orbitron font-semibold text-cyan-400 mb-2 uppercase">Select Gaming Console / Station</label>
+                    <select id="calcStationType" onchange="updateCalcRate()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-medium focus:outline-none focus:border-cyan-400 transition">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-orbitron font-semibold text-slate-400 mb-2 uppercase">Duration (Hours)</label>
+                        <input type="number" id="calcHours" min="0" value="1" oninput="calculateSessionCost()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-medium focus:outline-none focus:border-cyan-400 transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-orbitron font-semibold text-slate-400 mb-2 uppercase">Duration (Minutes)</label>
+                        <input type="number" id="calcMinutes" min="0" max="59" value="0" oninput="calculateSessionCost()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-medium focus:outline-none focus:border-cyan-400 transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-orbitron font-semibold text-slate-400 mb-2 uppercase">Number of Players</label>
+                    <select id="calcPlayers" onchange="calculateSessionCost()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-medium focus:outline-none focus:border-cyan-400 transition">
+                        <!-- Populated dynamically via JS based on selected station -->
+                    </select>
+                </div>
+
+                <!-- Result Box -->
+                <div class="bg-[#060911] border border-cyan-500/30 rounded-xl p-5 text-center relative overflow-hidden">
+                    <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-cyan-500/10 rounded-full blur-xl pointer-events-none"></div>
+                    <span class="text-xs font-orbitron uppercase text-slate-400 tracking-wider">Calculated Total Fee</span>
+                    <div id="calcTotalDisplay" class="font-orbitron text-3xl sm:text-4xl font-black text-cyan-400 mt-1">Rs. 0.00</div>
+                    <div id="calcBreakdown" class="text-xs text-slate-400 mt-2">Rate: Rs. 0 / hr</div>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="startSessionFromCalc()" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-orbitron font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> Start Active Station
+                    </button>
+                    <button onclick="printCalcReceipt()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold py-3 px-5 rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-print"></i> Receipt
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 3: MEDIA SALES (Games & Movies Copy) -->
+        <section id="viewStore" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">Media Sales & Copy Center</h2>
+                    <p class="text-slate-400 text-xs sm:text-sm mt-1">Game installations, movie copies, and software utilities.</p>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="mediaSearchInput" placeholder="Search games/movies..." oninput="renderMediaStore()" class="bg-[#0e1322] border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 w-full sm:w-64">
+                    <button onclick="openAddMediaModal()" id="addMediaItemBtn" class="bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 whitespace-nowrap">
+                        <i class="fa-solid fa-plus"></i> Add Item
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Copy & Movie Billing Calculator -->
+            <div class="glass-card p-5 sm:p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h3 class="font-orbitron font-bold text-white text-sm uppercase tracking-wide flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-amber-400"></i> Quick Copy & Movie Billing
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Category</label>
+                        <select id="mediaBillCategory" onchange="updateMediaBillFields()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                            <option value="PC Games">PC Games</option>
+                            <option value="Console Games">Console Games</option>
+                            <option value="Movies">Movies</option>
+                            <option value="TV Series">TV Series</option>
+                            <option value="Software">Software</option>
+                        </select>
+                    </div>
+                    <div id="mediaBillFieldsContainer">
+                        <!-- Populated dynamically via JS based on category -->
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Item / Title (optional)</label>
+                    <input type="text" id="mediaBillTitle" placeholder="e.g. GTA V, Avengers Endgame, Windows 11..." class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                </div>
+                <div class="bg-[#060911] border border-amber-500/30 rounded-xl p-4 text-center relative overflow-hidden">
+                    <span class="text-xs font-orbitron uppercase text-slate-400 tracking-wider">Total</span>
+                    <div id="mediaBillTotalDisplay" class="font-orbitron text-2xl sm:text-3xl font-black text-amber-400 mt-1">Rs. 0.00</div>
+                    <div id="mediaBillBreakdown" class="text-xs text-slate-400 mt-1">Select a category to calculate</div>
+                </div>
+                <button onclick="billMediaQuickCopy()" class="w-full bg-amber-500 hover:bg-amber-400 text-black font-orbitron font-bold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print"></i> Bill & Print Receipt
+                </button>
+            </div>
+
+            <!-- Media Items Grid -->
+            <div id="mediaGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+
+        <!-- VIEW 4: TOURNAMENTS -->
+        <section id="viewTournaments" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">E-Sports Tournaments</h2>
+                    <p class="text-slate-400 text-xs sm:text-sm mt-1">Manage Free Fire Battle Royale & 1v1 Bracket Tournaments with round progression.</p>
+                </div>
+                <button onclick="openCreateTournamentModal()" class="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-black font-orbitron font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-yellow-500/20 flex items-center gap-2">
+                    <i class="fa-solid fa-trophy"></i> Create Tournament
+                </button>
+            </div>
+
+            <div id="tournamentsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+
+        <!-- VIEW 5: STATION MANAGER (Active Timers) -->
+        <section id="viewManager" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">Station Manager</h2>
+                    <p class="text-slate-400 text-xs sm:text-sm mt-1">Monitor active console timers, calculate billing, and manage inventory sessions.</p>
+                </div>
+                <button onclick="openNewSessionModal()" class="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-orbitron font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-lg shadow-pink-500/20 flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Start New Station
+                </button>
+            </div>
+
+            <!-- Stations Status Grid -->
+            <div id="stationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </section>
+
+        <!-- VIEW 6: CUSTOMERS / MEMBERSHIP -->
+        <section id="viewCustomers" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">Customer & Loyalty Registry</h2>
+                    <p class="text-slate-400 text-xs sm:text-sm mt-1">Track regular players, membership discounts, and store credit.</p>
+                </div>
+                <button onclick="openAddCustomerModal()" class="bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> Register Customer
+                </button>
+            </div>
+
+            <div class="glass-card rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-[#060911] text-xs font-orbitron uppercase text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="p-4">Customer Name</th>
+                                <th class="p-4">Player IGN</th>
+                                <th class="p-4">Phone Number</th>
+                                <th class="p-4">Membership Type</th>
+                                <th class="p-4">Total Visits</th>
+                                <th class="p-4">Wallet Balance</th>
+                                <th class="p-4">Loyalty Points</th>
+                                <th class="p-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody" class="divide-y divide-slate-800/60">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 7: REVENUE REPORTS -->
+        <section id="viewReports" class="hidden space-y-6">
+            <div>
+                <h2 class="font-orbitron text-2xl sm:text-3xl font-black text-white uppercase tracking-wider">Revenue Reports</h2>
+                <p class="text-slate-400 text-xs sm:text-sm mt-1">Track sales performance across stations and media, for any date range.</p>
+            </div>
+
+            <!-- Date Range Controls -->
+            <div class="glass-card p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-4">
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="setReportRangePreset('today')" id="rangeToday" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase">Today</button>
+                    <button onclick="setReportRangePreset('week')" id="rangeWeek" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase">This Week</button>
+                    <button onclick="setReportRangePreset('month')" id="rangeMonth" class="cat-filter px-4 py-1.5 font-orbitron text-xs font-bold uppercase">This Month</button>
+                    <button onclick="setReportRangePreset('all')" id="rangeAll" class="cat-filter active px-4 py-1.5 font-orbitron text-xs font-bold uppercase">All Time</button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                    <div>
+                        <label class="block text-[11px] font-orbitron text-slate-400 mb-1 uppercase">From</label>
+                        <input type="date" id="reportFromDate" onchange="onCustomReportRangeChange()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-orbitron text-slate-400 mb-1 uppercase">To</label>
+                        <input type="date" id="reportToDate" onchange="onCustomReportRangeChange()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div id="reportRangeLabel" class="text-xs text-cyan-400 font-orbitron sm:text-right">All Time</div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="reportSummaryCards">
+                <!-- Populated via JS -->
+            </div>
+
+            <!-- Revenue Chart -->
+            <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                <h3 class="font-orbitron font-bold text-white text-sm uppercase tracking-wide mb-4">Revenue Over Time</h3>
+                <div class="relative" style="height: 280px;">
+                    <canvas id="reportChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Category Breakdown -->
+            <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                <h3 class="font-orbitron font-bold text-white text-sm uppercase tracking-wide mb-4">Revenue by Category</h3>
+                <div id="reportCategoryBreakdown" class="space-y-3">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- Transactions Log -->
+            <div class="glass-card rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
+                <div class="flex items-center justify-between p-4 border-b border-slate-800">
+                    <h3 class="font-orbitron font-bold text-white text-sm uppercase tracking-wide">Transactions</h3>
+                    <span id="reportTxCount" class="text-xs text-slate-400"></span>
+                </div>
+                <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-[#060911] text-xs font-orbitron uppercase text-slate-400 border-b border-slate-800 sticky top-0">
+                            <tr>
+                                <th class="p-3">Date/Time</th>
+                                <th class="p-3">Type</th>
+                                <th class="p-3">Description</th>
+                                <th class="p-3">Payment</th>
+                                <th class="p-3 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTransactionsBody" class="divide-y divide-slate-800/60">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+
+    <!-- Footer -->
+    <footer class="mt-16 text-center text-xs text-slate-500 border-t border-slate-900 pt-6">
+        <p class="font-orbitron text-slate-400">AGZ GAME ZONE • STATION MANAGER & PRICE SYSTEM</p>
+        <p class="mt-1">No.17, New Shopping Complex, Wetakeyawa, Gonawila • Hotline: +94 70 3238483</p>
+    </footer>
+
+    <!-- MODALS -->
+
+    <!-- Receipt / Checkout Modal -->
+    <div id="receiptModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div id="printableReceipt" class="glass-card w-full max-w-sm rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl relative text-slate-200">
+            <button onclick="closeReceiptModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white no-print">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="text-center border-b border-slate-700 pb-4">
+                <div class="font-orbitron font-black text-cyan-400 text-lg tracking-wider">AGZ GAME ZONE</div>
+                <div class="text-[11px] text-slate-400">No.17, New Shopping Complex, Wetakeyawa</div>
+                <div class="text-[11px] text-slate-400">Hotline: +94 70 3238483</div>
+                <div class="text-xs font-bold text-slate-300 mt-2 uppercase tracking-wide" id="receiptTitle">SESSION BILL RECEIPT</div>
+            </div>
+            
+            <div class="space-y-1.5 text-xs text-slate-300" id="receiptDetails">
+                <!-- Filled via JS -->
+            </div>
+
+            <div class="border-t border-dashed border-slate-700 pt-3 flex justify-between items-center font-orbitron font-bold text-sm text-cyan-400">
+                <span>TOTAL AMOUNT:</span>
+                <span id="receiptTotalAmount">Rs. 0.00</span>
+            </div>
+
+            <div class="text-center text-[10px] text-slate-500 pt-2">
+                Thank you for playing at AGZ! Come again.
+            </div>
+
+            <div class="flex gap-2 pt-2 no-print">
+                <button onclick="window.print()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print"></i> Print Receipt
+                </button>
+                <button onclick="closeReceiptModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start New Station Session Modal -->
+    <div id="newSessionModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="font-orbitron font-bold text-white text-base">Start New Station Session</h3>
+                <button onclick="toggleModal('newSessionModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Game / Console Type</label>
+                    <select id="newSessionType" onchange="updateNewSessionPlayerOptions()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Customer</label>
+                    <select id="newSessionCustomerSelect" onchange="onNewSessionCustomerChange()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <!-- Populated via JS: Walk-In / Guest + registered customers -->
+                    </select>
+                    <div id="newSessionPointsInfo" class="hidden mt-1.5 text-[11px] text-cyan-400 font-orbitron"></div>
+                </div>
+                <div id="newSessionGuestNameWrap">
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Guest Name (Optional)</label>
+                    <input type="text" id="newSessionGuestName" placeholder="Player name" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Payment Method</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="selectPaymentMethod('money')" id="newSessionPayMoney" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-money-bill-wave mr-1"></i> Money
+                        </button>
+                        <button type="button" onclick="selectPaymentMethod('points')" id="newSessionPayPoints" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-star mr-1"></i> Loyalty Points
+                        </button>
+                    </div>
+                    <input type="hidden" id="newSessionPaymentMethod" value="money">
+                </div>
+
+                <div id="newSessionMoneyFields" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Duration (Hours)</label>
+                        <input type="number" id="newSessionHours" min="0" value="1" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Duration (Mins)</label>
+                        <input type="number" id="newSessionMins" min="0" max="59" value="0" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                </div>
+
+                <div id="newSessionPointsFields" class="hidden grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Minutes to Redeem</label>
+                        <input type="number" id="newSessionPointsMinutes" min="0" step="1" value="30" oninput="updatePointsRedeemPreview()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Points Required</label>
+                        <div id="newSessionPointsRequired" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-cyan-400 font-orbitron font-bold">0 pts</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Number of Players</label>
+                    <select id="newSessionPlayers" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <!-- Populated dynamically via JS based on selected station -->
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="confirmStartSession()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Start Timer
+                </button>
+                <button onclick="toggleModal('newSessionModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Media Item Modal -->
+    <div id="mediaModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 id="mediaModalTitle" class="font-orbitron font-bold text-white text-base">Add Media Item</h3>
+                <button onclick="toggleModal('mediaModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <input type="hidden" id="editMediaId">
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Title</label>
+                    <input type="text" id="mediaTitleInput" placeholder="Game or Movie Title" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Category</label>
+                    <select id="mediaCategoryInput" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <option value="PC Game">PC Game Copy</option>
+                        <option value="PS Game">PlayStation 4/PlayStation 5 Game Copy</option>
+                        <option value="Movie">Movie / TV Series Copy</option>
+                        <option value="Software">Software / Utility</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Price (Rs.)</label>
+                    <input type="number" id="mediaPriceInput" placeholder="150" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Size / Details</label>
+                    <input type="text" id="mediaDetailsInput" placeholder="e.g. 65 GB or Full HD 1080p" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="saveMediaItem()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Save Item
+                </button>
+                <button onclick="toggleModal('mediaModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Tournament Modal -->
+    <div id="tournamentModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="font-orbitron font-bold text-white text-base">Create Tournament</h3>
+                <button onclick="toggleModal('tournamentModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Tournament Title</label>
+                    <input type="text" id="tournTitleInput" placeholder="e.g. Free Fire Battle Royale Cup" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Game Type</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="selectTournGameType('freefire')" id="tournGameTypeFF" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-fire mr-1"></i> Free Fire
+                        </button>
+                        <button type="button" onclick="selectTournGameType('other')" id="tournGameTypeOther" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-gamepad mr-1"></i> Other Games
+                        </button>
+                    </div>
+                    <input type="hidden" id="tournGameType" value="">
+                </div>
+                <div id="tournGameOtherGroup" class="hidden">
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Game Name</label>
+                    <input type="text" id="tournGameOtherInput" placeholder="e.g. Tekken 8, EA FC 24, PUBG..." class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Entry Fee (Rs.)</label>
+                        <input type="number" id="tournFeeInput" placeholder="500" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Prize Pool (Rs.)</label>
+                        <input type="number" id="tournPrizeInput" placeholder="5000" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                </div>
+                <div id="tournFormatGroup" class="hidden">
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Bracket Format</label>
+                    <select id="tournFormatInput" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <option value="Single Elimination Knockout">Single Elimination Knockout</option>
+                        <option value="Double Elimination">Double Elimination</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="saveTournament()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Create Tournament
+                </button>
+                <button onclick="toggleModal('tournamentModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Customer Modal -->
+    <div id="customerModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="font-orbitron font-bold text-white text-base">Register New Customer</h3>
+                <button onclick="toggleModal('customerModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Full Name</label>
+                    <input type="text" id="custNameInput" placeholder="Player Name" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Player IGN</label>
+                    <input type="text" id="custIgnInput" placeholder="In-Game Name" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Phone Number</label>
+                    <input type="text" id="custPhoneInput" placeholder="07X XXX XXXX" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Membership Tier</label>
+                    <select id="custTierInput" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <option value="Regular Player">Regular Player (Standard)</option>
+                        <option value="VIP Member">VIP Member (10% Discount)</option>
+                        <option value="Gold Gamer">Gold Gamer (15% Discount)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="saveCustomer()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Save Customer
+                </button>
+                <button onclick="toggleModal('customerModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit Tournament Participant Modal -->
+    <div id="participantModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 id="participantModalTitle" class="font-orbitron font-bold text-white text-base">Add Player / Team</h3>
+                <button onclick="toggleModal('participantModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <input type="hidden" id="participantTournamentId">
+                <input type="hidden" id="participantEditId">
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Registration Type</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="selectParticipantEntryType('single')" id="participantTypeSingle" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-user mr-1"></i> Single Player
+                        </button>
+                        <button type="button" onclick="selectParticipantEntryType('squad')" id="participantTypeSquad" class="tourn-gametype-btn px-3 py-2.5 rounded-xl border font-orbitron font-bold text-[11px] uppercase transition">
+                            <i class="fa-solid fa-people-group mr-1"></i> Squad
+                        </button>
+                    </div>
+                    <input type="hidden" id="participantEntryType" value="single">
+                </div>
+                <div>
+                    <label id="participantNameLabel" class="block font-orbitron text-slate-300 mb-1 uppercase">Player / Squad Name</label>
+                    <input type="text" id="participantNameInput" placeholder="e.g. Kasun P. or Alpha Squad" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div id="participantIdGroup">
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Free Fire Player ID</label>
+                    <input type="text" id="participantIdInput" placeholder="e.g. 123456789" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div id="participantMembersGroup" class="hidden">
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Squad Players (Name / IGN)</label>
+                    <div id="participantMembersList" class="space-y-2"></div>
+                    <button type="button" onclick="addParticipantMemberRow()" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold text-[11px] py-2 rounded-xl transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Add Player
+                    </button>
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="saveParticipant()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Save
+                </button>
+                <button onclick="toggleModal('participantModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bracket View / Manual Advance Modal (non-Free Fire tournaments) -->
+    <div id="bracketModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-4xl max-h-[85vh] rounded-2xl p-6 space-y-2 border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center flex-shrink-0">
+                <div>
+                    <h3 id="bracketModalTitle" class="font-orbitron font-bold text-white text-base">Tournament Bracket</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Select match winners to manually progress the bracket.</p>
+                </div>
+                <button onclick="toggleModal('bracketModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <input type="hidden" id="bracketTournamentId">
+            <div id="bracketModalContent" class="overflow-x-auto overflow-y-auto flex-grow pt-3">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Award Tournament Loyalty Points Modal -->
+    <div id="tournamentPointsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 class="font-orbitron font-bold text-white text-base">Award Loyalty Points</h3>
+                <button onclick="toggleModal('tournamentPointsModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="space-y-4 text-xs">
+                <input type="hidden" id="tournamentPointsTournamentId">
+                <div class="p-3 rounded-xl bg-[#060911] border border-slate-800">
+                    <div class="text-[10px] text-slate-400 uppercase font-orbitron">Tournament</div>
+                    <div id="tournamentPointsTitle" class="text-sm text-white font-semibold mt-0.5"></div>
+                    <div class="text-[10px] text-slate-400 uppercase font-orbitron mt-2">Winner</div>
+                    <div id="tournamentPointsWinner" class="text-sm text-yellow-400 font-bold mt-0.5"></div>
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Award To (Registered Customer)</label>
+                    <select id="tournamentPointsCustomer" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                        <!-- Populated via JS -->
+                    </select>
+                    <p class="text-[10px] text-slate-500 mt-1">Winner names (especially squads) may not match a customer record exactly — pick the account that should receive the points.</p>
+                </div>
+                <div>
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase">Loyalty Points to Award</label>
+                    <input type="number" id="tournamentPointsAmount" min="1" step="1" value="500" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                </div>
+            </div>
+            <div class="flex gap-2 pt-3">
+                <button onclick="confirmAwardTournamentPoints()" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Award Points
+                </button>
+                <button onclick="toggleModal('tournamentPointsModal', false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron font-bold py-2.5 px-4 rounded-xl text-xs transition">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info & Install PWA Modal -->
+    <div id="installModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl relative">
+            <button onclick="toggleModal('installModal', false)" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-xl font-orbitron font-black">
+                    AGZ
+                </div>
+                <div>
+                    <h3 class="font-orbitron font-bold text-white text-base">AceTec Game Zone</h3>
+                    <p class="text-xs text-slate-400">Station Management & Billing System</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs text-slate-300 bg-[#060911] p-4 rounded-xl border border-slate-800">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Location:</span>
+                    <span class="font-medium text-white">No.17, New Shopping Complex, Wetakeyawa</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Hotline:</span>
+                    <span class="font-medium text-cyan-400">+94 70 3238483</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">Status:</span>
+                    <span class="font-medium text-emerald-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i> System Online</span>
+                </div>
+            </div>
+
+            <div class="space-y-2 text-xs text-slate-400">
+                <p class="font-bold text-slate-200 uppercase font-orbitron">PWA Installation Instructions:</p>
+                <p>• <strong>Chrome/Android:</strong> Tap the browser menu (⋮) and select "Add to Home Screen".</p>
+                <p>• <strong>iOS Safari:</strong> Tap the Share icon (⎋) and select "Add to Home Screen".</p>
+            </div>
+
+            <button onclick="toggleModal('installModal', false)" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Manage Users Modal (Admin Only) -->
+    <div id="usersModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-card w-full max-w-lg rounded-2xl p-6 space-y-4 border border-slate-700 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="font-orbitron font-bold text-white text-base">Manage Users</h3>
+                <button onclick="toggleModal('usersModal', false)" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div id="usersList" class="space-y-2">
+                <!-- Populated via JS -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 space-y-3">
+                <h4 class="text-xs font-orbitron uppercase text-slate-400">Add New User</h4>
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="col-span-2">
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Display Name</label>
+                        <input type="text" id="newUserDisplayName" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Username</label>
+                        <input type="text" id="newUserUsername" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div>
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Password</label>
+                        <input type="password" id="newUserPassword" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block font-orbitron text-slate-300 mb-1 uppercase">Role</label>
+                        <select id="newUserRole" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+                            <option value="staff">Staff (Billing Only)</option>
+                            <option value="admin">Admin (Full Access)</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="createUser()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold py-2.5 rounded-xl text-xs transition">
+                    Add User
+                </button>
+            </div>
+        </div>
+    </div>
+
+    </div><!-- /#appRoot -->
+
+    <script>
+        const DEFAULT_PRICES = [
+            {
+                id: 'ps2',
+                title: 'PlayStation 2 (RETRO)',
+                category: 'playstation',
+                icon: 'fa-brands fa-playstation text-slate-400',
+                badge: 'Retro Classic',
+                badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
+                details: ['Classic PlayStation 2 Console & Library', 'Retro Local Multiplayer Favorites'],
+                tiers: [
+                    { players: 1, firstHour: 200, extraHour: 100 },
+                    { players: 2, firstHour: 300, extraHour: 200 }
+                ]
+            },
+            {
+                id: 'ps4',
+                title: 'PlayStation 4',
+                category: 'playstation',
+                icon: 'fa-brands fa-playstation text-blue-400',
+                badge: 'Popular',
+                badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+                details: ['DualShock 4 Controllers', 'HDR High Performance Gaming', 'FIFA 23, GTA V, God of War'],
+                tiers: [
+                    { players: 1, firstHour: 300, extraHour: 200 },
+                    { players: 2, firstHour: 500, extraHour: 400 },
+                    { players: 3, firstHour: 700, extraHour: 600 },
+                    { players: 4, firstHour: 1000, extraHour: 800 }
+                ]
+            },
+            {
+                id: 'ps5',
+                title: 'PlayStation 5',
+                category: 'playstation',
+                icon: 'fa-brands fa-playstation text-cyan-400',
+                badge: '4K 120Hz Rig',
+                badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+                details: ['Standard DualSense Controllers', 'Supports 4K UHD Display', 'Latest Titles: FC 24, Tekken 8, MK 1'],
+                tiers: [
+                    { players: 1, firstHour: 400, extraHour: 300 },
+                    { players: 2, firstHour: 600, extraHour: 500 }
+                ]
+            },
+            {
+                id: 'xbox',
+                title: 'XBOX',
+                category: 'xbox',
+                icon: 'fa-brands fa-xbox text-emerald-400',
+                badge: 'Game Pass Ultimate',
+                badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+                details: ['Xbox Wireless Controllers', '100+ Game Pass Titles Loaded', 'Forza Horizon 5, Halo, Mortal Kombat'],
+                tiers: [
+                    { players: 1, firstHour: 400, extraHour: 300 }
+                ]
+            },
+            {
+                id: 'ps4_racing_vr',
+                title: 'PlayStation 4 Racing Sim VR',
+                category: 'simulator',
+                icon: 'fa-solid fa-vr-cardboard text-purple-400',
+                badge: 'Immersive VR',
+                badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+                details: ['PlayStation VR Headset + Wheel & Pedals', 'Racing Bucket Seat Setup'],
+                tiers: [
+                    { players: 1, firstHour: 500, extraHour: 400 }
+                ]
+            },
+            {
+                id: 'ps5_racing',
+                title: 'PlayStation 5 Racing Sim',
+                category: 'simulator',
+                icon: 'fa-solid fa-car text-pink-400',
+                badge: 'Force Feedback',
+                badgeColor: 'bg-pink-500/10 text-pink-400 border-pink-500/30',
+                details: ['Logitech Wheel & Pedals', 'Bucket Racing Seat & Curved Display'],
+                tiers: [
+                    { players: 1, firstHour: 400, extraHour: 300 }
+                ]
+            },
+            {
+                id: 'games_movies',
+                title: 'Games & Movies',
+                category: 'media',
+                icon: 'fa-solid fa-clapperboard text-amber-400',
+                badge: 'Multi-Format Copying',
+                badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+                details: ['High Speed Direct SSD Transfer', 'Bring your own Hard Drive or Flash Disk', 'Software priced manually per request'],
+                copyRates: {
+                    pcGamePerGB: 10,
+                    consolePS4: 1000,
+                    consolePS5: 1500,
+                    movieNormal: 50,
+                    movie4K: 400,
+                    tvSeriesPerSeason: 150
+                }
+            }
+        ];
+
+        const DEFAULT_MEDIA = [
+            { id: 'm1', title: 'Grand Theft Auto V (PC/PlayStation 5)', category: 'PC Game', price: 200, details: '95 GB • Full Game Setup & Mods' },
+            { id: 'm2', title: 'Cyberpunk 2077: Phantom Liberty', category: 'PC Game', price: 250, details: '70 GB • Latest Update 2.1' },
+            { id: 'm3', title: 'EA Sports FC 24', category: 'PS Game', price: 300, details: '55 GB • PlayStation 4/PlayStation 5 Digital Package' },
+            { id: 'm4', title: 'Deadpool & Wolverine (2024)', category: 'Movie', price: 100, details: '2.4 GB • 1080p Full HD Dual Audio' },
+            { id: 'm5', title: 'Tekken 8 Ultimate Edition', category: 'PC Game', price: 250, details: '80 GB • DLC Unlocked' },
+            { id: 'm6', title: 'Windows 11 Pro + Drivers Pack 2024', category: 'Software', price: 200, details: '8.5 GB • Bootable ISO & Drivers' }
+        ];
+
+        const DEFAULT_TOURNAMENTS = [
+            {
+                id: 't1',
+                title: 'Free Fire Squad Battle Royale Cup',
+                game: 'Free Fire',
+                fee: 500,
+                prize: 10000,
+                format: 'Battle Royale Points',
+                status: 'Active',
+                participants: [
+                    {
+                        id: 'pl_1', entryType: 'squad', name: 'Alpha Squad', playerId: null,
+                        members: [
+                            { name: 'Kavindu (Alpha1)', playerId: '51234567' },
+                            { name: 'Sahan (Alpha2)', playerId: '51234568' },
+                            { name: 'Ruwan (Alpha3)', playerId: '51234569' },
+                            { name: 'Nadun (Alpha4)', playerId: '51234570' }
+                        ]
+                    },
+                    {
+                        id: 'pl_2', entryType: 'squad', name: 'Venom Killers', playerId: null,
+                        members: [
+                            { name: 'Chamika', playerId: '58877211' },
+                            { name: 'Dinesh', playerId: '58877212' }
+                        ]
+                    },
+                    { id: 'pl_3', entryType: 'single', name: 'LoneWolf_LK', playerId: '59012345', members: [] }
+                ],
+                bracket: null,
+                champion: null
+            },
+            {
+                id: 't2',
+                title: 'EA FC 24 - 1v1 Championship',
+                game: 'EA Sports FC 24',
+                fee: 300,
+                prize: 5000,
+                format: 'Single Elimination Knockout',
+                status: 'Setup',
+                participants: [
+                    { id: 'pl_5', entryType: 'single', name: 'Kasun P.', playerId: null, members: [] },
+                    { id: 'pl_6', entryType: 'single', name: 'Sahan R.', playerId: null, members: [] },
+                    { id: 'pl_7', entryType: 'single', name: 'Dilshan M.', playerId: null, members: [] },
+                    { id: 'pl_8', entryType: 'single', name: 'Nimal K.', playerId: null, members: [] }
+                ],
+                bracket: null,
+                champion: null
+            }
+        ];
+
+        const DEFAULT_CUSTOMERS = [
+            { id: 'c1', name: 'Dilshan Silva', ign: 'DilZ_LK', phone: '077 1234567', tier: 'VIP Member', visits: 24, wallet: 1200, loyaltyPoints: 850 },
+            { id: 'c2', name: 'Kamal Perera', ign: 'KamalGG', phone: '071 9876543', tier: 'Regular Player', visits: 8, wallet: 300, loyaltyPoints: 200 },
+            { id: 'c3', name: 'Nalin Fernando', ign: 'NalinX', phone: '070 3322110', tier: 'Gold Gamer', visits: 45, wallet: 2500, loyaltyPoints: 3200 }
+        ];
+
+        const DEFAULT_STATIONS = [
+            {
+                id: 'st1',
+                name: 'PlayStation 5 Station 01',
+                typeId: 'ps5',
+                customer: 'Kasun',
+                startTime: Date.now() - (15 * 60 * 1000), // Started 15 mins ago
+                durationMs: 60 * 60 * 1000, // 1 hour total
+                players: 2,
+                status: 'Active',
+                totalCost: 600
+            },
+            {
+                id: 'st2',
+                name: 'Xbox Station 02',
+                typeId: 'xbox',
+                customer: 'Ruwan',
+                startTime: Date.now() - (55 * 60 * 1000), // Started 55 mins ago
+                durationMs: 60 * 60 * 1000, // 1 hour total
+                players: 1,
+                status: 'Active',
+                totalCost: 400
+            }
+        ];
+
+        // Upgrades tournaments saved by older versions of the app (string participants, old status names, no bracket/squad fields)
+        function migrateTournaments(tournaments) {
+            return (tournaments || []).map(t => {
+                const participants = (t.participants || []).map(p => {
+                    if (typeof p === 'string') {
+                        return { id: 'pl_' + Math.random().toString(36).slice(2), entryType: 'single', name: p, playerId: null, members: [] };
+                    }
+                    return { entryType: 'single', members: [], ...p };
+                });
+                let status = t.status;
+                if (status === 'Upcoming') status = 'Setup';
+                if (!['Setup', 'Active', 'Completed'].includes(status)) status = 'Setup';
+                return { ...t, participants, status, bracket: t.bracket || null, champion: t.champion || null, pointsAwarded: t.pointsAwarded || 0 };
+            });
+        }
+
+        // === Backend API connection ===
+        // Points at the PHP API (see backend/ folder). Update these if you place
+        // the backend folder somewhere other than htdocs/agz-backend.
+        const API_BASE = 'http://localhost/agz-backend/api.php';
+        const AUTH_BASE = 'http://localhost/agz-backend/auth.php';
+
+        let currentUser = null;
+
+        async function fetchResource(resource) {
+            const res = await fetch(`${API_BASE}?resource=${resource}`, { credentials: 'include' });
+            if (res.status === 401) { showLoginScreen(); throw new Error('Not authenticated'); }
+            if (!res.ok) throw new Error(`Failed to fetch ${resource} (HTTP ${res.status})`);
+            return res.json();
+        }
+
+        function syncResource(resource, data) {
+            // Fire-and-forget: the UI already reflects the in-memory state immediately
+            // after any change, so callers of saveState() don't need to wait on this.
+            fetch(`${API_BASE}?resource=${resource}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (res.status === 401) { showLoginScreen(); return; }
+                if (!res.ok) return res.json().then(d => console.error(`Failed to save "${resource}":`, d.error || res.status));
+            }).catch(err => console.error(`Failed to save "${resource}" to the backend:`, err));
+        }
+
+        /* ---------- Authentication ---------- */
+
+        async function checkExistingSession() {
+            try {
+                const res = await fetch(`${AUTH_BASE}?action=me`, { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    onLoginSuccess(data.user);
+                } else {
+                    showLoginScreen();
+                }
+            } catch (err) {
+                showLoginScreen();
+            }
+        }
+
+        function showLoginScreen() {
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('appRoot').classList.add('hidden');
+        }
+
+        async function attemptLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorBox = document.getElementById('loginError');
+            const btn = document.getElementById('loginButton');
+
+            if (!username || !password) {
+                errorBox.innerText = 'Enter both username and password.';
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = 'Signing in...';
+            errorBox.classList.add('hidden');
+
+            try {
+                const res = await fetch(`${AUTH_BASE}?action=login`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errorBox.innerText = data.error || 'Login failed.';
+                    errorBox.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.innerText = 'Sign In';
+                    return;
+                }
+
+                onLoginSuccess(data.user);
+            } catch (err) {
+                errorBox.innerText = 'Could not reach the server. Is XAMPP (Apache + MySQL) running?';
+                errorBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerText = 'Sign In';
+            }
+        }
+
+        function onLoginSuccess(user) {
+            currentUser = user;
+
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('appRoot').classList.remove('hidden');
+            document.getElementById('loginButton').disabled = false;
+            document.getElementById('loginButton').innerText = 'Sign In';
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').classList.add('hidden');
+
+            document.getElementById('currentUserName').innerText = user.displayName;
+            document.getElementById('currentUserRole').innerText = user.role === 'admin' ? 'Administrator' : 'Staff';
+
+            applyRolePermissions();
+            loadStateFromServer();
+        }
+
+        async function logout() {
+            try {
+                await fetch(`${AUTH_BASE}?action=logout`, { method: 'POST', credentials: 'include' });
+            } catch (err) { /* ignore - reload will land back on the login screen either way */ }
+            location.reload();
+        }
+
+        // Hides/shows admin-only tabs and controls. This is a UX convenience, not the real security
+        // boundary - the backend (api.php/auth.php) enforces the actual restrictions, so even if
+        // someone bypassed this in the browser console they still couldn't write restricted data.
+        function applyRolePermissions() {
+            const isAdmin = currentUser && currentUser.role === 'admin';
+            document.getElementById('navTournaments').classList.toggle('hidden', !isAdmin);
+            document.getElementById('navCustomers').classList.toggle('hidden', !isAdmin);
+            document.getElementById('navReports').classList.toggle('hidden', !isAdmin);
+            document.getElementById('resetDataBtn').classList.toggle('hidden', !isAdmin);
+            document.getElementById('manageUsersBtn').classList.toggle('hidden', !isAdmin);
+
+            const addMediaBtn = document.getElementById('addMediaItemBtn');
+            if (addMediaBtn) addMediaBtn.classList.toggle('hidden', !isAdmin);
+        }
+
+        /* ---------- User Management (Admin Only) ---------- */
+
+        async function openUsersModal() {
+            toggleModal('usersModal', true);
+            await refreshUsersList();
+        }
+
+        async function refreshUsersList() {
+            try {
+                const res = await fetch(`${AUTH_BASE}?action=list_users`, { credentials: 'include' });
+                const users = await res.json();
+                const list = document.getElementById('usersList');
+                list.innerHTML = users.map(u => `
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-[#060911] border border-slate-800">
+                        <div>
+                            <div class="text-sm text-white font-semibold">${u.display_name} <span class="text-[10px] text-slate-500">(@${u.username})</span></div>
+                            <span class="text-[10px] font-orbitron uppercase px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30' : 'bg-slate-700/50 text-slate-300 border border-slate-600'}">${u.role}</span>
+                        </div>
+                        ${String(u.id) !== String(currentUser.id) ? `<button onclick="deleteUser(${u.id})" class="text-slate-500 hover:text-pink-400 text-xs"><i class="fa-solid fa-trash"></i></button>` : `<span class="text-[10px] text-slate-500">You</span>`}
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Failed to load users:', err);
+            }
+        }
+
+        async function createUser() {
+            const displayName = document.getElementById('newUserDisplayName').value.trim();
+            const username = document.getElementById('newUserUsername').value.trim();
+            const password = document.getElementById('newUserPassword').value;
+            const role = document.getElementById('newUserRole').value;
+
+            if (!username || password.length < 4) {
+                alert('Enter a username and a password at least 4 characters long.');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${AUTH_BASE}?action=create_user`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, displayName: displayName || username, role })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Failed to create user.'); return; }
+
+                document.getElementById('newUserDisplayName').value = '';
+                document.getElementById('newUserUsername').value = '';
+                document.getElementById('newUserPassword').value = '';
+                refreshUsersList();
+            } catch (err) {
+                alert('Could not reach the server.');
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Remove this user account?')) return;
+            try {
+                const res = await fetch(`${AUTH_BASE}?action=delete_user`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Failed to delete user.'); return; }
+                refreshUsersList();
+            } catch (err) {
+                alert('Could not reach the server.');
+            }
+        }
+
+        // Resets pricing to the current default structure if the loaded data looks stale/outdated
+        // (e.g. from before the Games & Movies pricing rework), rather than crashing at runtime.
+        function migratePrices(prices) {
+            const hasGamesMoviesEntry = Array.isArray(prices) && prices.some(p => p.id === 'games_movies' && p.copyRates);
+            if (!Array.isArray(prices) || prices.length === 0 || !hasGamesMoviesEntry) {
+                return DEFAULT_PRICES;
+            }
+            return prices;
+        }
+
+        // Upgrades stations saved by older versions of the app (controller count instead of player count,
+        // or missing the payment-method/customerId fields added by the loyalty points system)
+        function migrateStations(stations) {
+            return (stations || []).map(st => {
+                let result = st;
+                if (result.players === undefined) {
+                    const players = result.controllers || 1;
+                    const { controllers, ...rest } = result;
+                    result = { ...rest, players };
+                }
+                if (result.paymentMethod === undefined) result = { ...result, paymentMethod: 'money', pointsUsed: 0, customerId: result.customerId || null };
+                return result;
+            });
+        }
+
+        // Ensures customers saved before the loyalty points system have a starting balance of 0
+        function migrateCustomers(customers) {
+            return (customers || []).map(c => ({ loyaltyPoints: 0, ign: '', ...c }));
+        }
+
+        // state starts empty and is populated asynchronously from the backend on load (see
+        // loadStateFromServer / window.onload below) - MySQL is now the source of truth.
+        let state = {
+            prices: [],
+            media: [],
+            tournaments: [],
+            customers: [],
+            stations: [],
+            sales: [],
+            currentCategoryFilter: 'all'
+        };
+
+        async function loadStateFromServer() {
+            try {
+                const [prices, media, tournaments, customers, stations, sales] = await Promise.all([
+                    fetchResource('prices'),
+                    fetchResource('media'),
+                    fetchResource('tournaments'),
+                    fetchResource('customers'),
+                    fetchResource('stations'),
+                    fetchResource('sales'),
+                ]);
+
+                const isFirstRun = prices.length === 0 && media.length === 0 && tournaments.length === 0 && customers.length === 0;
+
+                state.prices = migratePrices(prices);
+                state.media = media.length ? media : DEFAULT_MEDIA;
+                state.tournaments = migrateTournaments(tournaments.length ? tournaments : DEFAULT_TOURNAMENTS);
+                state.customers = migrateCustomers(customers.length ? customers : DEFAULT_CUSTOMERS);
+                state.stations = migrateStations(stations); // ok to start with zero active stations
+                state.sales = sales || []; // ok to start with zero sales history - it's a running log, never seeded
+
+                renderPrices();
+                populateCalcDropdown();
+                updateBadges();
+
+                // First time ever connecting to a fresh database: seed it with the starter/demo data
+                // so it isn't empty on the next load.
+                if (isFirstRun) saveState();
+            } catch (err) {
+                console.error('Failed to load data from backend:', err);
+                document.body.innerHTML = `
+                    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;text-align:center;font-family:sans-serif;color:#e2e8f0;">
+                        <div>
+                            <h1 style="color:#ff007f;font-size:1.25rem;margin-bottom:0.75rem;">Can't reach the backend server</h1>
+                            <p style="color:#94a3b8;max-width:480px;">Make sure Apache and MySQL are running in the XAMPP Control Panel, and that the backend folder is set up at <code>htdocs/agz-backend</code>. Then reload this page.</p>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        function saveState() {
+            syncResource('prices', state.prices);
+            syncResource('media', state.media);
+            syncResource('tournaments', state.tournaments);
+            syncResource('customers', state.customers);
+            syncResource('stations', state.stations);
+            syncResource('sales', state.sales);
+            updateBadges();
+        }
+
+        // Records a completed transaction for the Reports tab. Doesn't call saveState() itself -
+        // callers should already be calling saveState() right after, so this just queues the record
+        // into the in-memory array that the next saveState() call will persist.
+        function logSale(sale) {
+            if (!state.sales) state.sales = [];
+            state.sales.push({
+                id: 'sale_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                timestamp: Date.now(),
+                ...sale
+            });
+        }
+
+        function playAlertSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.5);
+            } catch (e) {
+                console.log("Audio play blocked", e);
+            }
+        }
+
+        function switchView(viewName) {
+            const views = ['viewPrices', 'viewCalculator', 'viewStore', 'viewTournaments', 'viewManager', 'viewCustomers', 'viewReports'];
+            const navs = ['navPrices', 'navCalc', 'navStore', 'navTournaments', 'navManager', 'navCustomers', 'navReports'];
+
+            views.forEach((v) => {
+                document.getElementById(v).classList.add('hidden');
+            });
+            navs.forEach((n) => {
+                document.getElementById(n).classList.remove('active');
+                document.getElementById(n).classList.add('text-slate-400');
+            });
+
+            if (viewName === 'prices') {
+                document.getElementById('viewPrices').classList.remove('hidden');
+                document.getElementById('navPrices').classList.add('active');
+            } else if (viewName === 'calculator') {
+                document.getElementById('viewCalculator').classList.remove('hidden');
+                document.getElementById('navCalc').classList.add('active');
+                calculateSessionCost();
+            } else if (viewName === 'store') {
+                document.getElementById('viewStore').classList.remove('hidden');
+                document.getElementById('navStore').classList.add('active');
+                renderMediaStore();
+                updateMediaBillFields();
+            } else if (viewName === 'tournaments') {
+                document.getElementById('viewTournaments').classList.remove('hidden');
+                document.getElementById('navTournaments').classList.add('active');
+                renderTournaments();
+            } else if (viewName === 'manager') {
+                document.getElementById('viewManager').classList.remove('hidden');
+                document.getElementById('navManager').classList.add('active');
+                renderStations();
+            } else if (viewName === 'customers') {
+                document.getElementById('viewCustomers').classList.remove('hidden');
+                document.getElementById('navCustomers').classList.add('active');
+                renderCustomers();
+            } else if (viewName === 'reports') {
+                document.getElementById('viewReports').classList.remove('hidden');
+                document.getElementById('navReports').classList.add('active');
+                setReportRangePreset(reportRangeState.preset === 'custom' ? 'all' : reportRangeState.preset);
+            }
+        }
+
+        function filterCategory(cat) {
+            state.currentCategoryFilter = cat;
+            document.querySelectorAll('.cat-filter').forEach(btn => btn.classList.remove('active'));
+            if(cat === 'all') document.getElementById('catAll').classList.add('active');
+            if(cat === 'playstation') document.getElementById('catPs').classList.add('active');
+            if(cat === 'xbox') document.getElementById('catXbox').classList.add('active');
+            if(cat === 'simulator') document.getElementById('catSim').classList.add('active');
+            if(cat === 'media') document.getElementById('catMedia').classList.add('active');
+
+            renderPrices();
+        }
+
+        function getStationById(id) {
+            return state.prices.find(p => p.id === id);
+        }
+
+        function renderPrices() {
+            const grid = document.getElementById('pricingGrid');
+            grid.innerHTML = '';
+
+            const filtered = state.prices.filter(p => state.currentCategoryFilter === 'all' || p.category === state.currentCategoryFilter);
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between group hover:border-cyan-500/50 transition duration-300 shadow-lg';
+
+                let detailsList = item.details.map(d => `<li class="flex items-center gap-2"><i class="fa-solid fa-angle-right text-cyan-400 text-[10px]"></i> ${d}</li>`).join('');
+
+                let pricingHtml;
+                if (item.copyRates) {
+                    const r = item.copyRates;
+                    const rows = [
+                        ['PC Games', `Rs. ${r.pcGamePerGB.toFixed(2)} <span class="text-[10px] font-normal text-slate-400">/ GB</span>`],
+                        ['Console Games - PS4', `Rs. ${r.consolePS4.toFixed(2)}`],
+                        ['Console Games - PS5', `Rs. ${r.consolePS5.toFixed(2)}`],
+                        ['Movies - Normal Quality', `Rs. ${r.movieNormal.toFixed(2)}`],
+                        ['Movies - 4K Quality', `Rs. ${r.movie4K.toFixed(2)}`],
+                        ['TV Series - Per Season', `Rs. ${r.tvSeriesPerSeason.toFixed(2)}`],
+                        ['Software', `<span class="text-slate-400 uppercase text-[11px]">Priced Manually</span>`]
+                    ];
+                    pricingHtml = rows.map(([label, value]) => `
+                        <div class="px-3 py-2 rounded-xl bg-[#060911]/80 border border-slate-800/80 flex items-center justify-between">
+                            <span class="text-xs text-slate-300 font-semibold">${label}</span>
+                            <span class="font-orbitron font-bold text-cyan-400 text-sm">${value}</span>
+                        </div>`).join('');
+                } else {
+                    pricingHtml = (item.tiers || []).map(tier => `
+                        <div class="p-3 rounded-xl bg-[#060911]/80 border border-slate-800/80 flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-slate-400 uppercase font-orbitron">${tier.players} Player${tier.players > 1 ? 's' : ''} • 1 Hour</span>
+                                <div class="font-orbitron font-black text-lg text-cyan-400">Rs. ${tier.firstHour.toFixed(2)}</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[10px] text-slate-400 uppercase font-orbitron">Additional Hour</span>
+                                <div class="font-orbitron font-bold text-sm text-slate-200">+Rs. ${tier.extraHour.toFixed(2)}</div>
+                            </div>
+                        </div>`).join('');
+                }
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-12 h-12 rounded-xl bg-[#060911] border border-slate-800 flex items-center justify-center text-2xl shadow-inner">
+                                <i class="${item.icon}"></i>
+                            </div>
+                            <span class="text-[11px] font-orbitron font-bold px-3 py-1 rounded-full border ${item.badgeColor} uppercase tracking-wider">
+                                ${item.badge}
+                            </span>
+                        </div>
+
+                        <h3 class="font-orbitron font-bold text-lg text-white group-hover:text-cyan-400 transition">${item.title}</h3>
+
+                        <div class="mt-4 space-y-2">
+                            ${pricingHtml}
+                        </div>
+
+                        <ul class="mt-4 space-y-1.5 text-xs text-slate-400">
+                            ${detailsList}
+                        </ul>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function populateCalcDropdown() {
+            const select = document.getElementById('calcStationType');
+            const newSelect = document.getElementById('newSessionType');
+            select.innerHTML = '';
+            newSelect.innerHTML = '';
+
+            // Only hourly-rental stations (with player tiers) belong in these dropdowns - the
+            // Games & Movies copy service is billed separately via the Quick Copy & Movie Billing tool.
+            state.prices.filter(p => Array.isArray(p.tiers) && p.tiers.length).forEach(p => {
+                const minPrice = Math.min(...p.tiers.map(t => t.firstHour));
+                select.innerHTML += `<option value="${p.id}">${p.title} (from Rs. ${minPrice}/hr)</option>`;
+                newSelect.innerHTML += `<option value="${p.id}">${p.title} (from Rs. ${minPrice}/hr)</option>`;
+            });
+
+            updateCalcRate();
+            updateNewSessionPlayerOptions();
+        }
+
+        function populatePlayerOptions(selectId, stationId) {
+            const station = getStationById(stationId);
+            const select = document.getElementById(selectId);
+            select.innerHTML = '';
+            if (!station) return;
+
+            (station.tiers || []).forEach(tier => {
+                select.innerHTML += `<option value="${tier.players}">${tier.players} Player${tier.players > 1 ? 's' : ''} (Rs. ${tier.firstHour} first hr)</option>`;
+            });
+        }
+
+        function calculateSessionCost() {
+            const stationId = document.getElementById('calcStationType').value;
+            const hours = parseFloat(document.getElementById('calcHours').value) || 0;
+            const minutes = parseFloat(document.getElementById('calcMinutes').value) || 0;
+            const players = parseInt(document.getElementById('calcPlayers').value) || 1;
+
+            const station = getStationById(stationId);
+            if (!station) return;
+            const tier = (station.tiers || []).find(t => t.players === players) || station.tiers[0];
+            if (!tier) return;
+
+            const totalHours = hours + (minutes / 60);
+            let finalCost = 0;
+            if (totalHours > 0) {
+                finalCost = totalHours <= 1 ? tier.firstHour : tier.firstHour + tier.extraHour * (totalHours - 1);
+            }
+            finalCost = Math.round(finalCost);
+
+            document.getElementById('calcTotalDisplay').innerText = `Rs. ${finalCost}.00`;
+            document.getElementById('calcBreakdown').innerText = `${tier.players} Player${tier.players > 1 ? 's' : ''} • 1st Hr: Rs. ${tier.firstHour} • +Rs. ${tier.extraHour}/hr after • ${totalHours.toFixed(2)} Hrs`;
+
+            return { station, tier, totalHours, finalCost, players };
+        }
+
+        function updateCalcRate() {
+            const stationId = document.getElementById('calcStationType').value;
+            populatePlayerOptions('calcPlayers', stationId);
+            calculateSessionCost();
+        }
+
+        function startSessionFromCalc() {
+            const calc = calculateSessionCost();
+            if(!calc || calc.totalHours <= 0) return;
+
+            const newStation = {
+                id: 'st_' + Date.now(),
+                name: `${calc.station.title} - Custom`,
+                typeId: calc.station.id,
+                customer: 'Walk-In Player',
+                startTime: Date.now(),
+                durationMs: calc.totalHours * 60 * 60 * 1000,
+                players: calc.players,
+                status: 'Active',
+                totalCost: calc.finalCost
+            };
+
+            state.stations.push(newStation);
+            saveState();
+            switchView('manager');
+        }
+
+        function printCalcReceipt() {
+            const calc = calculateSessionCost();
+            if(!calc) return;
+
+            document.getElementById('receiptTitle').innerText = 'QUICK CALCULATOR BILL';
+            document.getElementById('receiptDetails').innerHTML = `
+                <div class="flex justify-between"><span>Station:</span> <span class="font-bold">${calc.station.title}</span></div>
+                <div class="flex justify-between"><span>Duration:</span> <span>${calc.totalHours.toFixed(2)} Hours</span></div>
+                <div class="flex justify-between"><span>Players:</span> <span>${calc.players}</span></div>
+                <div class="flex justify-between"><span>1st Hour Rate:</span> <span>Rs. ${calc.tier.firstHour}</span></div>
+                <div class="flex justify-between"><span>Additional Hour:</span> <span>+Rs. ${calc.tier.extraHour}</span></div>
+                <div class="flex justify-between text-slate-400 text-[10px]"><span>Date/Time:</span> <span>${new Date().toLocaleString()}</span></div>
+            `;
+            document.getElementById('receiptTotalAmount').innerText = `Rs. ${calc.finalCost}.00`;
+            toggleModal('receiptModal', true);
+        }
+
+        function getMediaCopyRates() {
+            let item = state.prices.find(p => p.id === 'games_movies');
+            if (!item || !item.copyRates) {
+                // Self-heal: pricing data is missing/stale - fall back to defaults
+                item = DEFAULT_PRICES.find(p => p.id === 'games_movies');
+            }
+            return item ? item.copyRates : null;
+        }
+
+        function updateMediaBillFields() {
+            const cat = document.getElementById('mediaBillCategory').value;
+            const rates = getMediaCopyRates();
+            const container = document.getElementById('mediaBillFieldsContainer');
+            let html = '';
+
+            if (!rates) {
+                container.innerHTML = '<p class="text-xs text-pink-400">Pricing data unavailable. Try the reset button in the header.</p>';
+                return;
+            }
+
+            if (cat === 'PC Games') {
+                html = `
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Size (GB)</label>
+                    <input type="number" id="mediaBillGB" min="0" step="0.1" value="1" oninput="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">`;
+            } else if (cat === 'Console Games') {
+                html = `
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Platform</label>
+                            <select id="mediaBillPlatform" onchange="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                                <option value="PS4">PS4 Games (Rs. ${rates.consolePS4.toFixed(2)})</option>
+                                <option value="PS5">PS5 Games (Rs. ${rates.consolePS5.toFixed(2)})</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Number of Games</label>
+                            <input type="number" id="mediaBillGameQty" min="1" step="1" value="1" oninput="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                        </div>
+                    </div>`;
+            } else if (cat === 'Movies') {
+                html = `
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Quality</label>
+                            <select id="mediaBillQuality" onchange="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                                <option value="Normal">Normal Quality (Rs. ${rates.movieNormal.toFixed(2)})</option>
+                                <option value="4K">4K Quality (Rs. ${rates.movie4K.toFixed(2)})</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Number of Movies</label>
+                            <input type="number" id="mediaBillMovieQty" min="1" step="1" value="1" oninput="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">
+                        </div>
+                    </div>`;
+            } else if (cat === 'TV Series') {
+                html = `
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Number of Seasons</label>
+                    <input type="number" id="mediaBillSeasons" min="1" step="1" value="1" oninput="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">`;
+            } else if (cat === 'Software') {
+                html = `
+                    <label class="block font-orbitron text-slate-300 mb-1 uppercase text-[11px]">Price (Rs.) — Enter Manually</label>
+                    <input type="number" id="mediaBillCustomPrice" min="0" step="1" value="" placeholder="e.g. 250" oninput="calculateMediaBill()" class="w-full bg-[#060911] border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-xs focus:outline-none focus:border-cyan-400">`;
+            }
+
+            container.innerHTML = html;
+            calculateMediaBill();
+        }
+
+        function calculateMediaBill() {
+            const cat = document.getElementById('mediaBillCategory').value;
+            const rates = getMediaCopyRates();
+            if (!rates) return null;
+
+            let cost = 0;
+            let breakdown = '';
+
+            if (cat === 'PC Games') {
+                const gb = parseFloat(document.getElementById('mediaBillGB')?.value) || 0;
+                cost = gb * rates.pcGamePerGB;
+                breakdown = `${gb} GB × Rs. ${rates.pcGamePerGB.toFixed(2)}/GB`;
+            } else if (cat === 'Console Games') {
+                const platform = document.getElementById('mediaBillPlatform')?.value || 'PS4';
+                const qty = parseInt(document.getElementById('mediaBillGameQty')?.value) || 1;
+                const unitPrice = platform === 'PS5' ? rates.consolePS5 : rates.consolePS4;
+                cost = unitPrice * qty;
+                breakdown = `${qty} × ${platform} Game${qty !== 1 ? 's' : ''} @ Rs. ${unitPrice.toFixed(2)}`;
+            } else if (cat === 'Movies') {
+                const quality = document.getElementById('mediaBillQuality')?.value || 'Normal';
+                const qty = parseInt(document.getElementById('mediaBillMovieQty')?.value) || 1;
+                const unitPrice = quality === '4K' ? rates.movie4K : rates.movieNormal;
+                cost = unitPrice * qty;
+                breakdown = `${qty} × ${quality === '4K' ? '4K Quality' : 'Normal Quality'} Movie${qty !== 1 ? 's' : ''} @ Rs. ${unitPrice.toFixed(2)}`;
+            } else if (cat === 'TV Series') {
+                const seasons = parseFloat(document.getElementById('mediaBillSeasons')?.value) || 0;
+                cost = seasons * rates.tvSeriesPerSeason;
+                breakdown = `${seasons} Season${seasons !== 1 ? 's' : ''} × Rs. ${rates.tvSeriesPerSeason.toFixed(2)}`;
+            } else if (cat === 'Software') {
+                cost = parseFloat(document.getElementById('mediaBillCustomPrice')?.value) || 0;
+                breakdown = 'Custom Price (Entered Manually)';
+            }
+
+            cost = Math.round(cost * 100) / 100;
+            document.getElementById('mediaBillTotalDisplay').innerText = `Rs. ${cost.toFixed(2)}`;
+            document.getElementById('mediaBillBreakdown').innerText = breakdown;
+
+            return { cat, cost, breakdown };
+        }
+
+        function billMediaQuickCopy() {
+            const calc = calculateMediaBill();
+            if (!calc || calc.cost <= 0) {
+                alert('Enter valid details before billing (price must be more than Rs. 0).');
+                return;
+            }
+
+            const title = document.getElementById('mediaBillTitle').value.trim() || calc.cat;
+
+            document.getElementById('receiptTitle').innerText = 'MEDIA COPY BILL';
+            document.getElementById('receiptDetails').innerHTML = `
+                <div class="flex justify-between"><span>Item:</span> <span class="font-bold">${title}</span></div>
+                <div class="flex justify-between"><span>Category:</span> <span>${calc.cat}</span></div>
+                <div class="flex justify-between"><span>Details:</span> <span>${calc.breakdown}</span></div>
+                <div class="flex justify-between text-slate-400 text-[10px]"><span>Date/Time:</span> <span>${new Date().toLocaleString()}</span></div>
+            `;
+            document.getElementById('receiptTotalAmount').innerText = `Rs. ${calc.cost.toFixed(2)}`;
+
+            logSale({
+                type: 'media',
+                description: `${title} (${calc.cat})`,
+                amount: calc.cost,
+                paymentMethod: 'money',
+                customerId: null,
+                customerName: null
+            });
+            saveState();
+
+            toggleModal('receiptModal', true);
+        }
+
+        function renderMediaStore() {
+            const search = document.getElementById('mediaSearchInput').value.toLowerCase();
+            const grid = document.getElementById('mediaGrid');
+            grid.innerHTML = '';
+
+            const filtered = state.media.filter(m => m.title.toLowerCase().includes(search) || m.category.toLowerCase().includes(search));
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'glass-card p-5 rounded-2xl border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition shadow-lg';
+                const isAdmin = currentUser && currentUser.role === 'admin';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start">
+                            <span class="text-[10px] font-orbitron font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase">
+                                ${item.category}
+                            </span>
+                            ${isAdmin ? `<div class="flex gap-2">
+                                <button onclick="editMediaItem('${item.id}')" class="text-slate-400 hover:text-cyan-400 text-xs"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteMediaItem('${item.id}')" class="text-slate-400 hover:text-pink-400 text-xs"><i class="fa-solid fa-trash"></i></button>
+                            </div>` : ''}
+                        </div>
+                        <h4 class="font-orbitron font-bold text-white text-base mt-3">${item.title}</h4>
+                        <p class="text-xs text-slate-400 mt-1">${item.details}</p>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                        <div class="font-orbitron font-bold text-lg text-amber-400">Rs. ${item.price}</div>
+                        <button onclick="checkoutMediaItem('${item.id}')" class="bg-amber-500 hover:bg-amber-400 text-black font-orbitron font-bold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1">
+                            <i class="fa-solid fa-cart-shopping"></i> Copy & Bill
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openAddMediaModal() {
+            document.getElementById('mediaModalTitle').innerText = 'Add Media Item';
+            document.getElementById('editMediaId').value = '';
+            document.getElementById('mediaTitleInput').value = '';
+            document.getElementById('mediaPriceInput').value = '';
+            document.getElementById('mediaDetailsInput').value = '';
+            toggleModal('mediaModal', true);
+        }
+
+        function editMediaItem(id) {
+            const item = state.media.find(m => m.id === id);
+            if(!item) return;
+
+            document.getElementById('mediaModalTitle').innerText = 'Edit Media Item';
+            document.getElementById('editMediaId').value = item.id;
+            document.getElementById('mediaTitleInput').value = item.title;
+            document.getElementById('mediaCategoryInput').value = item.category;
+            document.getElementById('mediaPriceInput').value = item.price;
+            document.getElementById('mediaDetailsInput').value = item.details;
+            toggleModal('mediaModal', true);
+        }
+
+        function saveMediaItem() {
+            const id = document.getElementById('editMediaId').value;
+            const title = document.getElementById('mediaTitleInput').value.trim();
+            const category = document.getElementById('mediaCategoryInput').value;
+            const price = parseFloat(document.getElementById('mediaPriceInput').value) || 0;
+            const details = document.getElementById('mediaDetailsInput').value.trim();
+
+            if(!title) return;
+
+            if (id) {
+                const item = state.media.find(m => m.id === id);
+                if(item) {
+                    item.title = title;
+                    item.category = category;
+                    item.price = price;
+                    item.details = details;
+                }
+            } else {
+                state.media.push({
+                    id: 'm_' + Date.now(),
+                    title, category, price, details
+                });
+            }
+
+            saveState();
+            toggleModal('mediaModal', false);
+            renderMediaStore();
+        }
+
+        function deleteMediaItem(id) {
+            state.media = state.media.filter(m => m.id !== id);
+            saveState();
+            renderMediaStore();
+        }
+
+        function checkoutMediaItem(id) {
+            const item = state.media.find(m => m.id === id);
+            if(!item) return;
+
+            document.getElementById('receiptTitle').innerText = 'MEDIA COPY BILL';
+            document.getElementById('receiptDetails').innerHTML = `
+                <div class="flex justify-between"><span>Media Item:</span> <span class="font-bold">${item.title}</span></div>
+                <div class="flex justify-between"><span>Type:</span> <span>${item.category}</span></div>
+                <div class="flex justify-between"><span>Details:</span> <span>${item.details}</span></div>
+                <div class="flex justify-between text-slate-400 text-[10px]"><span>Date/Time:</span> <span>${new Date().toLocaleString()}</span></div>
+            `;
+            document.getElementById('receiptTotalAmount').innerText = `Rs. ${item.price}.00`;
+
+            logSale({
+                type: 'media',
+                description: `${item.title} (${item.category})`,
+                amount: item.price,
+                paymentMethod: 'money',
+                customerId: null,
+                customerName: null
+            });
+            saveState();
+
+            toggleModal('receiptModal', true);
+        }
+
+        function isBattleRoyale(t) {
+            return t.format === 'Battle Royale Points';
+        }
+
+        function renderTournaments() {
+            const grid = document.getElementById('tournamentsGrid');
+            grid.innerHTML = '';
+
+            state.tournaments.forEach(t => {
+                const isBR = isBattleRoyale(t);
+                const participants = t.participants || [];
+
+                let statusBadge;
+                if (t.status === 'Setup') {
+                    statusBadge = `<span class="text-[10px] font-orbitron font-bold px-2.5 py-0.5 rounded-full bg-slate-700/60 text-slate-300 border border-slate-600 uppercase">Setup</span>`;
+                } else if (t.status === 'Active') {
+                    statusBadge = `<span class="text-[10px] font-orbitron font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase"><i class="fa-solid fa-circle text-[6px] mr-1 animate-pulse"></i>Live</span>`;
+                } else {
+                    statusBadge = `<span class="text-[10px] font-orbitron font-bold px-2.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 uppercase"><i class="fa-solid fa-trophy mr-1"></i>Completed</span>`;
+                }
+
+                let partList;
+                if (!participants.length) {
+                    partList = `<span class="text-xs text-slate-500">No players registered yet.</span>`;
+                } else {
+                    partList = participants.map((p, i) => {
+                        const isSquad = p.entryType === 'squad';
+                        const typeTag = isSquad
+                            ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 ml-1.5 align-middle">SQUAD</span>`
+                            : '';
+                        const idHtml = (!isSquad && isBR && p.playerId) ? ` <span class="text-cyan-400">(ID: ${p.playerId})</span>` : '';
+                        const membersHtml = (isSquad && p.members && p.members.length)
+                            ? `<div class="text-[11px] text-slate-400 mt-1.5 pl-4 space-y-0.5">${p.members.map(m => `<div>• ${m.name}${isBR && m.playerId ? ` <span class="text-cyan-400">(ID: ${m.playerId})</span>` : ''}</div>`).join('')}</div>`
+                            : '';
+
+                        return `
+                            <div class="bg-[#060911] rounded-lg border border-slate-800 px-3 py-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs text-slate-200 font-semibold">${i + 1}. ${p.name}${idHtml}${typeTag}</span>
+                                    <div class="flex gap-1 flex-shrink-0">
+                                        <button onclick="openAddParticipantModal('${t.id}','${p.id}')" class="text-slate-500 hover:text-cyan-400 text-xs px-1" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                        <button onclick="deleteParticipant('${t.id}','${p.id}')" class="text-slate-500 hover:text-pink-400 text-xs px-1" title="Remove"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                ${membersHtml}
+                            </div>`;
+                    }).join('');
+                }
+
+                let actionButtons = '';
+                if (t.status === 'Setup') {
+                    actionButtons = `
+                        <button onclick="openAddParticipantModal('${t.id}')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-user-plus"></i> Register Player / Squad
+                        </button>
+                        <button onclick="startTournament('${t.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-play"></i> Start Tournament
+                        </button>`;
+                } else if (t.status === 'Active') {
+                    actionButtons = isBR
+                        ? `<button onclick="openAddParticipantModal('${t.id}')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                             <i class="fa-solid fa-user-plus"></i> Register Player / Squad
+                           </button>
+                           <button onclick="finishBattleRoyale('${t.id}')" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                             <i class="fa-solid fa-flag-checkered"></i> Finish Match
+                           </button>`
+                        : `<button onclick="openBracketModal('${t.id}')" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                             <i class="fa-solid fa-diagram-project"></i> View / Advance Bracket
+                           </button>`;
+                } else {
+                    actionButtons = isBR
+                        ? `<span class="flex-1 text-center text-xs text-yellow-400 font-orbitron py-2">Tournament Completed</span>`
+                        : `<button onclick="openBracketModal('${t.id}')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                             <i class="fa-solid fa-diagram-project"></i> View Bracket
+                           </button>
+                           <button onclick="openAwardTournamentPointsModal('${t.id}')" class="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-orbitron font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
+                             <i class="fa-solid fa-star"></i> Award Points
+                           </button>`;
+                }
+
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6 rounded-2xl border border-slate-800 space-y-4 hover:border-yellow-500/40 transition shadow-lg';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-[10px] font-orbitron font-bold px-2.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 uppercase">
+                                    ${t.format}
+                                </span>
+                                ${statusBadge}
+                            </div>
+                            <h3 class="font-orbitron font-bold text-white text-lg mt-2">${t.title}</h3>
+                            <div class="text-xs text-slate-400"><i class="fa-solid fa-gamepad text-yellow-400 mr-1"></i> ${t.game}</div>
+                        </div>
+                        <button onclick="deleteTournament('${t.id}')" class="text-slate-500 hover:text-pink-400 text-xs"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 p-3 rounded-xl bg-[#060911] border border-slate-800 text-xs">
+                        <div>
+                            <span class="text-slate-400 block text-[10px] uppercase font-orbitron">Entry Fee</span>
+                            <span class="font-bold text-slate-200">Rs. ${t.fee}</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block text-[10px] uppercase font-orbitron">Prize Pool</span>
+                            <span class="font-bold text-yellow-400">Rs. ${t.prize}</span>
+                        </div>
+                    </div>
+
+                    ${t.status === 'Completed' && t.champion ? `<div class="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-center text-xs font-orbitron font-bold text-yellow-400"><i class="fa-solid fa-crown mr-1"></i> Winner: ${t.champion}${t.pointsAwarded ? `<span class="block text-[10px] font-normal text-slate-300 mt-1"><i class="fa-solid fa-star text-yellow-400 mr-1"></i>${t.pointsAwarded} loyalty points awarded</span>` : ''}</div>` : ''}
+
+                    <div>
+                        <div class="text-xs font-orbitron uppercase text-slate-400 mb-2">Registered Players / Squads (${participants.length}):</div>
+                        <div class="space-y-2">
+                            ${partList}
+                        </div>
+                    </div>
+
+                    <div class="pt-2 flex gap-2">
+                        ${actionButtons}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openCreateTournamentModal() {
+            document.getElementById('tournTitleInput').value = '';
+            document.getElementById('tournFeeInput').value = '';
+            document.getElementById('tournPrizeInput').value = '';
+            document.getElementById('tournGameOtherInput').value = '';
+            document.getElementById('tournGameType').value = '';
+            document.getElementById('tournGameTypeFF').classList.remove('active');
+            document.getElementById('tournGameTypeOther').classList.remove('active');
+            document.getElementById('tournGameOtherGroup').classList.add('hidden');
+            document.getElementById('tournFormatGroup').classList.add('hidden');
+            toggleModal('tournamentModal', true);
+        }
+
+        function selectTournGameType(type) {
+            document.getElementById('tournGameType').value = type;
+            document.getElementById('tournGameTypeFF').classList.toggle('active', type === 'freefire');
+            document.getElementById('tournGameTypeOther').classList.toggle('active', type === 'other');
+
+            const otherGroup = document.getElementById('tournGameOtherGroup');
+            const formatGroup = document.getElementById('tournFormatGroup');
+
+            if (type === 'freefire') {
+                otherGroup.classList.add('hidden');
+                formatGroup.classList.add('hidden');
+            } else {
+                otherGroup.classList.remove('hidden');
+                formatGroup.classList.remove('hidden');
+            }
+        }
+
+        function saveTournament() {
+            const title = document.getElementById('tournTitleInput').value.trim();
+            const gameType = document.getElementById('tournGameType').value;
+            const fee = parseFloat(document.getElementById('tournFeeInput').value) || 0;
+            const prize = parseFloat(document.getElementById('tournPrizeInput').value) || 0;
+
+            if (!title) { alert('Enter a tournament title.'); return; }
+            if (!gameType) { alert('Select Free Fire or Other Games.'); return; }
+
+            let game, format;
+            if (gameType === 'freefire') {
+                game = 'Free Fire';
+                format = 'Battle Royale Points';
+            } else {
+                game = document.getElementById('tournGameOtherInput').value.trim();
+                if (!game) { alert('Enter the game name.'); return; }
+                format = document.getElementById('tournFormatInput').value;
+            }
+
+            state.tournaments.push({
+                id: 't_' + Date.now(),
+                title, game, fee, prize, format,
+                status: 'Setup',
+                participants: [],
+                bracket: null,
+                champion: null
+            });
+
+            saveState();
+            toggleModal('tournamentModal', false);
+            renderTournaments();
+        }
+
+        let participantModalIsBR = false;
+
+        function escapeHtml(str) {
+            return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function openAddParticipantModal(tId, editId = null) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+            const isBR = isBattleRoyale(t);
+            participantModalIsBR = isBR;
+
+            document.getElementById('participantTournamentId').value = tId;
+            document.getElementById('participantEditId').value = editId || '';
+
+            let existing = null;
+            if (editId) existing = (t.participants || []).find(p => p.id === editId);
+
+            const entryType = existing ? (existing.entryType || 'single') : 'single';
+            document.getElementById('participantEntryType').value = entryType;
+            updateParticipantEntryTypeButtons(entryType);
+
+            document.getElementById('participantIdGroup').classList.toggle('hidden', !(isBR && entryType === 'single'));
+            document.getElementById('participantMembersGroup').classList.toggle('hidden', entryType !== 'squad');
+
+            document.getElementById('participantNameInput').value = existing ? existing.name : '';
+            document.getElementById('participantIdInput').value = existing ? (existing.playerId || '') : '';
+            document.getElementById('participantNameLabel').innerText = entryType === 'squad' ? 'Squad Name' : ('Player Name' + (isBR ? ' / IGN' : ''));
+
+            const membersList = document.getElementById('participantMembersList');
+            membersList.innerHTML = '';
+            if (entryType === 'squad') {
+                const members = (existing && existing.members && existing.members.length) ? existing.members : [{ name: '', playerId: '' }, { name: '', playerId: '' }];
+                members.forEach(m => addParticipantMemberRow(m.name, m.playerId || ''));
+            }
+
+            let modalLabel;
+            if (entryType === 'squad') modalLabel = existing ? 'Edit Squad' : 'Register Squad';
+            else modalLabel = existing ? 'Edit Player' : (isBR ? 'Add Player (Free Fire)' : 'Add Player');
+            document.getElementById('participantModalTitle').innerText = modalLabel;
+
+            toggleModal('participantModal', true);
+        }
+
+        function selectParticipantEntryType(type) {
+            document.getElementById('participantEntryType').value = type;
+            updateParticipantEntryTypeButtons(type);
+
+            const isBR = participantModalIsBR;
+            document.getElementById('participantIdGroup').classList.toggle('hidden', !(isBR && type === 'single'));
+            document.getElementById('participantMembersGroup').classList.toggle('hidden', type !== 'squad');
+            document.getElementById('participantNameLabel').innerText = type === 'squad' ? 'Squad Name' : ('Player Name' + (isBR ? ' / IGN' : ''));
+
+            const membersList = document.getElementById('participantMembersList');
+            if (type === 'squad' && membersList.children.length === 0) {
+                addParticipantMemberRow('', '');
+                addParticipantMemberRow('', '');
+            }
+        }
+
+        function updateParticipantEntryTypeButtons(type) {
+            document.getElementById('participantTypeSingle').classList.toggle('active', type === 'single');
+            document.getElementById('participantTypeSquad').classList.toggle('active', type === 'squad');
+        }
+
+        function addParticipantMemberRow(nameVal = '', idVal = '') {
+            const list = document.getElementById('participantMembersList');
+            const row = document.createElement('div');
+            row.className = 'flex gap-2 items-center member-row';
+
+            const idFieldHtml = participantModalIsBR
+                ? `<input type="text" value="${escapeHtml(idVal)}" placeholder="Player ID" class="participant-member-id w-24 bg-[#060911] border border-slate-700 rounded-xl px-2 py-2 text-slate-200 focus:outline-none focus:border-cyan-400 text-xs">`
+                : '';
+
+            row.innerHTML = `
+                <input type="text" value="${escapeHtml(nameVal)}" placeholder="Player Name / IGN" class="participant-member-name flex-1 bg-[#060911] border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-cyan-400 text-xs">
+                ${idFieldHtml}
+                <button type="button" onclick="this.parentElement.remove()" class="text-slate-500 hover:text-pink-400 px-1"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            list.appendChild(row);
+        }
+
+        function saveParticipant() {
+            const tId = document.getElementById('participantTournamentId').value;
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+
+            const editId = document.getElementById('participantEditId').value;
+            const isBR = isBattleRoyale(t);
+            const entryType = document.getElementById('participantEntryType').value;
+            const name = document.getElementById('participantNameInput').value.trim();
+
+            if (!name) {
+                alert(entryType === 'squad' ? 'Enter a squad name.' : 'Enter a player name.');
+                return;
+            }
+
+            let playerId = null;
+            let members = [];
+
+            if (entryType === 'squad') {
+                members = Array.from(document.querySelectorAll('#participantMembersList .member-row')).map(row => {
+                    const nameInput = row.querySelector('.participant-member-name');
+                    const idInput = row.querySelector('.participant-member-id');
+                    return {
+                        name: nameInput ? nameInput.value.trim() : '',
+                        playerId: idInput ? (idInput.value.trim() || null) : null
+                    };
+                }).filter(m => m.name.length);
+
+                if (members.length === 0) {
+                    alert('Add at least one player name / IGN to the squad.');
+                    return;
+                }
+            } else if (isBR) {
+                playerId = document.getElementById('participantIdInput').value.trim() || null;
+            }
+
+            if (!t.participants) t.participants = [];
+
+            if (editId) {
+                const existing = t.participants.find(p => p.id === editId);
+                if (existing) {
+                    existing.entryType = entryType;
+                    existing.name = name;
+                    existing.playerId = playerId;
+                    existing.members = members;
+                }
+            } else {
+                t.participants.push({ id: 'pl_' + Date.now(), entryType, name, playerId, members });
+            }
+
+            saveState();
+            toggleModal('participantModal', false);
+            renderTournaments();
+        }
+
+        function deleteParticipant(tId, pId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+            if (!confirm('Remove this player / squad from the tournament?')) return;
+            t.participants = (t.participants || []).filter(p => p.id !== pId);
+            saveState();
+            renderTournaments();
+        }
+
+        function startTournament(tId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+
+            if (!t.participants || t.participants.length < 2) {
+                alert('Add at least 2 players / squads before starting the tournament.');
+                return;
+            }
+            if (!confirm(`Start "${t.title}"? Registration will lock once started.`)) return;
+
+            t.status = 'Active';
+            if (!isBattleRoyale(t)) {
+                t.bracket = { rounds: generateBracket(t.participants) };
+            }
+
+            saveState();
+            renderTournaments();
+        }
+
+        // Free Fire / Battle Royale tournaments don't use a bracket - just mark it finished and log the winning squad
+        function finishBattleRoyale(tId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+            const winner = prompt('Enter the winning player / squad name:');
+            if (!winner) return;
+
+            t.status = 'Completed';
+            t.champion = winner.trim();
+            saveState();
+            renderTournaments();
+        }
+
+        function deleteTournament(id) {
+            state.tournaments = state.tournaments.filter(t => t.id !== id);
+            saveState();
+            renderTournaments();
+        }
+
+        /* ---------- Bracket generation & manual round advancement (non-Free Fire tournaments) ---------- */
+
+        function generateBracket(participants) {
+            let list = participants.map(p => ({ ...p }));
+            // Shuffle to randomize seeding
+            for (let i = list.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [list[i], list[j]] = [list[j], list[i]];
+            }
+            // Pad to next power of two with byes (null)
+            let size = 1;
+            while (size < list.length) size *= 2;
+            while (list.length < size) list.push(null);
+
+            const round = [];
+            for (let i = 0; i < list.length; i += 2) {
+                const p1 = list[i], p2 = list[i + 1];
+                let winner = null;
+                if (p1 && !p2) winner = 'p1';
+                if (p2 && !p1) winner = 'p2';
+                round.push({ p1, p2, winner });
+            }
+            return [round];
+        }
+
+        function openBracketModal(tId) {
+            document.getElementById('bracketTournamentId').value = tId;
+            renderBracketModalContent(tId);
+            toggleModal('bracketModal', true);
+        }
+
+        function matchCardHtml(t, roundIdx, matchIdx, match, editable) {
+            const p1Name = match.p1 ? match.p1.name : 'BYE';
+            const p2Name = match.p2 ? match.p2.name : 'BYE';
+            const p1Win = match.winner === 'p1';
+            const p2Win = match.winner === 'p2';
+            const canPick = editable && !match.winner;
+
+            const rowClass = (isWinner, exists) => {
+                if (!exists) return 'opacity-40 cursor-not-allowed bg-slate-800/40 border border-slate-800 text-slate-500';
+                if (isWinner) return 'bg-emerald-500/20 border border-emerald-500 text-emerald-400';
+                return `bg-slate-800/60 border border-slate-700 text-slate-300 ${canPick ? 'hover:border-cyan-400 cursor-pointer' : ''}`;
+            };
+
+            return `
+                <div class="bg-[#060911] border border-slate-800 rounded-xl p-3 w-56 space-y-2 flex-shrink-0">
+                    <button ${match.p1 && canPick ? `onclick="setMatchWinner('${t.id}',${roundIdx},${matchIdx},'p1')"` : 'disabled'}
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition ${rowClass(p1Win, !!match.p1)}">
+                        ${p1Name} ${p1Win ? '<i class="fa-solid fa-crown ml-1 text-emerald-400"></i>' : ''}
+                    </button>
+                    <button ${match.p2 && canPick ? `onclick="setMatchWinner('${t.id}',${roundIdx},${matchIdx},'p2')"` : 'disabled'}
+                        class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition ${rowClass(p2Win, !!match.p2)}">
+                        ${p2Name} ${p2Win ? '<i class="fa-solid fa-crown ml-1 text-emerald-400"></i>' : ''}
+                    </button>
+                </div>`;
+        }
+
+        function renderBracketModalContent(tId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t || !t.bracket) return;
+
+            document.getElementById('bracketModalTitle').innerText = `${t.title} — Bracket`;
+
+            const rounds = t.bracket.rounds;
+            const lastIdx = rounds.length - 1;
+
+            let html = '<div class="flex gap-6 pb-2">';
+            rounds.forEach((round, rIdx) => {
+                const isCurrent = rIdx === lastIdx && t.status !== 'Completed';
+                const roundLabel = round.length === 1 ? 'Final' : round.length === 2 ? 'Semi-Finals' : `Round ${rIdx + 1}`;
+                html += `<div class="flex flex-col gap-4">
+                    <div class="text-center text-[10px] font-orbitron uppercase text-slate-400 tracking-wider">${roundLabel}</div>
+                    <div class="flex flex-col gap-6 justify-center flex-grow">`;
+                round.forEach((m, mIdx) => {
+                    html += matchCardHtml(t, rIdx, mIdx, m, isCurrent);
+                });
+                html += `</div></div>`;
+            });
+            html += '</div>';
+
+            const lastRound = rounds[lastIdx];
+            const allDecided = lastRound.every(m => m.winner);
+
+            if (t.status === 'Completed') {
+                html += `<div class="mt-5 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/40 text-center">
+                    <i class="fa-solid fa-trophy text-yellow-400 text-2xl"></i>
+                    <div class="font-orbitron font-bold text-yellow-400 mt-1">Champion: ${t.champion}</div>
+                </div>`;
+            } else if (allDecided) {
+                html += `<div class="mt-5 text-center">
+                    <button onclick="advanceRound('${t.id}')" class="bg-cyan-500 hover:bg-cyan-400 text-black font-orbitron font-bold text-xs px-5 py-2.5 rounded-xl transition">
+                        ${lastRound.length === 1 ? 'Declare Champion' : 'Advance to Next Round'}
+                    </button>
+                </div>`;
+            } else {
+                html += `<div class="mt-5 text-center text-xs text-slate-500">Select a winner for every match in the current round to unlock the next round.</div>`;
+            }
+
+            document.getElementById('bracketModalContent').innerHTML = html;
+        }
+
+        function setMatchWinner(tId, roundIdx, matchIdx, side) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t || !t.bracket) return;
+            const match = t.bracket.rounds[roundIdx][matchIdx];
+            if (!match[side] || match.winner) return;
+
+            match.winner = side;
+            saveState();
+            renderBracketModalContent(tId);
+            renderTournaments();
+        }
+
+        function advanceRound(tId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t || !t.bracket) return;
+
+            const rounds = t.bracket.rounds;
+            const currentRound = rounds[rounds.length - 1];
+            if (currentRound.some(m => !m.winner)) {
+                alert('Select all winners for this round first.');
+                return;
+            }
+
+            if (currentRound.length === 1) {
+                const finalMatch = currentRound[0];
+                const champ = finalMatch.winner === 'p1' ? finalMatch.p1 : finalMatch.p2;
+                t.status = 'Completed';
+                t.champion = champ.name;
+                saveState();
+                renderTournaments();
+                renderBracketModalContent(tId);
+                return;
+            }
+
+            const winners = currentRound.map(m => m.winner === 'p1' ? m.p1 : m.p2);
+            const nextRound = [];
+            for (let i = 0; i < winners.length; i += 2) {
+                const p1 = winners[i], p2 = winners[i + 1] || null;
+                let winner = null;
+                if (p1 && !p2) winner = 'p1';
+                nextRound.push({ p1, p2, winner });
+            }
+            rounds.push(nextRound);
+
+            saveState();
+            renderTournaments();
+            renderBracketModalContent(tId);
+        }
+
+        function openAwardTournamentPointsModal(tId) {
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!t) return;
+
+            document.getElementById('tournamentPointsTournamentId').value = tId;
+            document.getElementById('tournamentPointsTitle').innerText = t.title;
+            document.getElementById('tournamentPointsWinner').innerText = t.champion || '-';
+
+            const select = document.getElementById('tournamentPointsCustomer');
+            if (state.customers.length) {
+                select.innerHTML = state.customers.map(c => `<option value="${c.id}">${c.name}${c.ign ? ` (${c.ign})` : ''} — ${c.loyaltyPoints || 0} pts</option>`).join('');
+            } else {
+                select.innerHTML = '<option value="">No registered customers yet</option>';
+            }
+
+            document.getElementById('tournamentPointsAmount').value = 500;
+            toggleModal('tournamentPointsModal', true);
+        }
+
+        function confirmAwardTournamentPoints() {
+            const tId = document.getElementById('tournamentPointsTournamentId').value;
+            const custId = document.getElementById('tournamentPointsCustomer').value;
+            const amount = parseInt(document.getElementById('tournamentPointsAmount').value) || 0;
+
+            if (!custId) { alert('Select a registered customer to award points to.'); return; }
+            if (amount <= 0) { alert('Enter a valid points amount.'); return; }
+
+            const customer = state.customers.find(c => c.id === custId);
+            const t = state.tournaments.find(x => x.id === tId);
+            if (!customer || !t) return;
+
+            customer.loyaltyPoints = (customer.loyaltyPoints || 0) + amount;
+            t.pointsAwarded = (t.pointsAwarded || 0) + amount;
+
+            saveState();
+            toggleModal('tournamentPointsModal', false);
+            renderTournaments();
+            alert(`Awarded ${amount} loyalty points to ${customer.name}.`);
+        }
+
+        function renderStations() {
+            const grid = document.getElementById('stationsGrid');
+            grid.innerHTML = '';
+
+            state.stations.forEach(st => {
+                const now = Date.now();
+                const elapsed = now - st.startTime;
+                const remaining = Math.max(0, st.durationMs - elapsed);
+                const isExpired = remaining <= 0;
+
+                const progressPct = Math.min(100, Math.max(0, (elapsed / st.durationMs) * 100));
+
+                // Formatting time remaining
+                const remSecs = Math.floor((remaining / 1000) % 60);
+                const remMins = Math.floor((remaining / (1000 * 60)) % 60);
+                const remHrs = Math.floor(remaining / (1000 * 60 * 60));
+                const timeStr = `${String(remHrs).padStart(2, '0')}:${String(remMins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
+
+                const card = document.createElement('div');
+                card.className = `glass-card p-6 rounded-2xl border transition shadow-xl relative overflow-hidden ${isExpired ? 'border-pink-500/80 bg-pink-950/20' : 'border-slate-800'}`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <span class="text-[10px] font-orbitron font-bold px-2 py-0.5 rounded-full ${isExpired ? 'bg-pink-500 text-white animate-pulse' : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'} uppercase">
+                                ${isExpired ? 'TIME EXPIRED' : 'ACTIVE SESSION'}
+                            </span>
+                            <h3 class="font-orbitron font-bold text-lg text-white mt-1.5">${st.name}</h3>
+                            <span class="text-xs text-slate-400"><i class="fa-solid fa-user text-slate-500 mr-1"></i> Player: ${st.customer}</span>
+                        </div>
+                        <button onclick="stopAndBillStation('${st.id}')" class="bg-pink-500 hover:bg-pink-400 text-white font-orbitron font-bold text-xs px-3 py-1.5 rounded-xl transition shadow-lg shadow-pink-500/20">
+                            Stop & Bill
+                        </button>
+                    </div>
+
+                    <!-- Timer Display -->
+                    <div class="bg-[#060911] p-4 rounded-xl border border-slate-800/80 text-center my-4">
+                        <span class="text-[10px] font-orbitron uppercase text-slate-500 tracking-wider">Remaining Time</span>
+                        <div class="font-orbitron font-black text-3xl sm:text-4xl ${isExpired ? 'text-pink-500 animate-pulse' : 'text-cyan-400'} mt-1">
+                            ${timeStr}
+                        </div>
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
+                            <div class="h-full ${isExpired ? 'bg-pink-500' : 'bg-gradient-to-r from-cyan-500 to-purple-500'} transition-all duration-1000" style="width: ${progressPct}%"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs text-slate-400 border-b border-slate-800/80 pb-3 mb-3">
+                        <span>Players: <strong>${st.players}</strong></span>
+                        <span>
+                            ${st.paymentMethod === 'points'
+                                ? `<i class="fa-solid fa-star text-yellow-400 mr-1"></i>Points: <strong class="text-yellow-400 font-orbitron">${st.pointsUsed || 0} pts</strong>`
+                                : `Billing Amount: <strong class="text-cyan-400 font-orbitron">Rs. ${st.totalCost}</strong>`}
+                        </span>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="extendStationTime('${st.id}', 15)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron text-[11px] font-bold py-2 rounded-xl transition">
+                            +15 Mins
+                        </button>
+                        <button onclick="extendStationTime('${st.id}', 30)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron text-[11px] font-bold py-2 rounded-xl transition">
+                            +30 Mins
+                        </button>
+                        <button onclick="extendStationTime('${st.id}', 60)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-orbitron text-[11px] font-bold py-2 rounded-xl transition">
+                            +1 Hour
+                        </button>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        /* Timer tick engine running every second */
+        setInterval(() => {
+            if(!document.getElementById('viewManager').classList.contains('hidden')) {
+                renderStations();
+            }
+            
+            // Check for newly expired sessions and play beep
+            state.stations.forEach(st => {
+                const remaining = st.durationMs - (Date.now() - st.startTime);
+                if (remaining <= 0 && remaining > -2000) {
+                    playAlertSound();
+                }
+            });
+        }, 1000);
+
+        const LOYALTY_POINTS_PER_HOUR = 100;
+        const LOYALTY_POINTS_PER_REDEEM = 100; // 100 points = 6 minutes
+        const LOYALTY_MINUTES_PER_REDEEM = 6;
+
+        function updateNewSessionPlayerOptions() {
+            const stationId = document.getElementById('newSessionType').value;
+            populatePlayerOptions('newSessionPlayers', stationId);
+        }
+
+        function populateNewSessionCustomerOptions() {
+            const select = document.getElementById('newSessionCustomerSelect');
+            select.innerHTML = '<option value="">Walk-In / Guest</option>';
+            state.customers.forEach(c => {
+                select.innerHTML += `<option value="${c.id}">${c.name}${c.ign ? ` (${c.ign})` : ''} — ${c.loyaltyPoints || 0} pts</option>`;
+            });
+        }
+
+        function onNewSessionCustomerChange() {
+            const custId = document.getElementById('newSessionCustomerSelect').value;
+            const guestNameWrap = document.getElementById('newSessionGuestNameWrap');
+            const pointsInfo = document.getElementById('newSessionPointsInfo');
+            const redeemBtn = document.getElementById('newSessionPayPoints');
+
+            if (!custId) {
+                guestNameWrap.classList.remove('hidden');
+                pointsInfo.classList.add('hidden');
+                redeemBtn.disabled = true;
+                redeemBtn.classList.add('opacity-40', 'cursor-not-allowed');
+                selectPaymentMethod('money');
+            } else {
+                guestNameWrap.classList.add('hidden');
+                const customer = state.customers.find(c => c.id === custId);
+                const points = customer ? (customer.loyaltyPoints || 0) : 0;
+                pointsInfo.classList.remove('hidden');
+                pointsInfo.innerText = `Loyalty Points Available: ${points} pts`;
+                redeemBtn.disabled = false;
+                redeemBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            }
+        }
+
+        function selectPaymentMethod(method) {
+            document.getElementById('newSessionPaymentMethod').value = method;
+            document.getElementById('newSessionPayMoney').classList.toggle('active', method === 'money');
+            document.getElementById('newSessionPayPoints').classList.toggle('active', method === 'points');
+            document.getElementById('newSessionMoneyFields').classList.toggle('hidden', method !== 'money');
+            document.getElementById('newSessionPointsFields').classList.toggle('hidden', method !== 'points');
+            updatePointsRedeemPreview();
+        }
+
+        function updatePointsRedeemPreview() {
+            const minutes = parseFloat(document.getElementById('newSessionPointsMinutes')?.value) || 0;
+            const pointsRequired = Math.ceil((minutes / LOYALTY_MINUTES_PER_REDEEM) * LOYALTY_POINTS_PER_REDEEM);
+            const el = document.getElementById('newSessionPointsRequired');
+            if (el) el.innerText = `${pointsRequired} pts`;
+        }
+
+        function openNewSessionModal() {
+            populateCalcDropdown();
+            populateNewSessionCustomerOptions();
+            document.getElementById('newSessionGuestName').value = '';
+            document.getElementById('newSessionCustomerSelect').value = '';
+            selectPaymentMethod('money');
+            onNewSessionCustomerChange();
+            toggleModal('newSessionModal', true);
+        }
+
+        function confirmStartSession() {
+            const typeId = document.getElementById('newSessionType').value;
+            const players = parseInt(document.getElementById('newSessionPlayers').value) || 1;
+            const custId = document.getElementById('newSessionCustomerSelect').value;
+            const paymentMethod = document.getElementById('newSessionPaymentMethod').value;
+
+            const typeObj = getStationById(typeId);
+            if(!typeObj) return;
+            const tier = (typeObj.tiers || []).find(t => t.players === players) || typeObj.tiers[0];
+            if (!tier) return;
+
+            const customerObj = custId ? state.customers.find(c => c.id === custId) : null;
+            const customerName = customerObj ? customerObj.name : (document.getElementById('newSessionGuestName').value.trim() || 'Walk-In');
+
+            let totalHours, totalCost, pointsUsed = 0;
+
+            if (paymentMethod === 'points') {
+                if (!customerObj) { alert('Select a registered customer to redeem loyalty points.'); return; }
+
+                const minutes = parseFloat(document.getElementById('newSessionPointsMinutes').value) || 0;
+                if (minutes <= 0) { alert('Enter minutes to redeem.'); return; }
+
+                pointsUsed = Math.ceil((minutes / LOYALTY_MINUTES_PER_REDEEM) * LOYALTY_POINTS_PER_REDEEM);
+                const available = customerObj.loyaltyPoints || 0;
+                if (pointsUsed > available) {
+                    alert(`Not enough loyalty points. Needs ${pointsUsed} pts, customer only has ${available} pts.`);
+                    return;
+                }
+
+                customerObj.loyaltyPoints = available - pointsUsed;
+                totalHours = minutes / 60;
+                totalCost = 0;
+            } else {
+                const hours = parseFloat(document.getElementById('newSessionHours').value) || 0;
+                const mins = parseFloat(document.getElementById('newSessionMins').value) || 0;
+                totalHours = hours + (mins / 60);
+                if (totalHours <= 0) return;
+                totalCost = Math.round(totalHours <= 1 ? tier.firstHour : tier.firstHour + tier.extraHour * (totalHours - 1));
+            }
+
+            // Auto-generate a station name from the console type + how many of that type are already running
+            const sameTypeCount = state.stations.filter(s => s.typeId === typeId).length;
+            const name = `${typeObj.title} - Station ${sameTypeCount + 1}`;
+
+            state.stations.push({
+                id: 'st_' + Date.now(),
+                name, typeId,
+                customer: customerName,
+                customerId: custId || null,
+                paymentMethod, pointsUsed,
+                startTime: Date.now(),
+                durationMs: totalHours * 60 * 60 * 1000,
+                players,
+                status: 'Active',
+                totalCost
+            });
+
+            saveState();
+            toggleModal('newSessionModal', false);
+            renderStations();
+        }
+
+        function extendStationTime(stId, additionalMins) {
+            const st = state.stations.find(s => s.id === stId);
+            if (!st) return;
+
+            if (st.paymentMethod === 'points') {
+                const customer = st.customerId ? state.customers.find(c => c.id === st.customerId) : null;
+                const extraPointsNeeded = Math.ceil((additionalMins / LOYALTY_MINUTES_PER_REDEEM) * LOYALTY_POINTS_PER_REDEEM);
+                const available = customer ? (customer.loyaltyPoints || 0) : 0;
+
+                if (!customer || extraPointsNeeded > available) {
+                    alert(`Not enough loyalty points to extend by ${additionalMins} mins. Needs ${extraPointsNeeded} pts, customer only has ${available} pts.`);
+                    return;
+                }
+
+                customer.loyaltyPoints = available - extraPointsNeeded;
+                st.pointsUsed = (st.pointsUsed || 0) + extraPointsNeeded;
+                st.durationMs += additionalMins * 60 * 1000;
+            } else {
+                const typeObj = getStationById(st.typeId);
+                const tier = typeObj ? (typeObj.tiers || []).find(t => t.players === st.players) : null;
+                const extraRate = tier ? tier.extraHour : 300;
+
+                const extraHours = additionalMins / 60;
+                const extraCost = Math.round(extraHours * extraRate);
+
+                st.durationMs += additionalMins * 60 * 1000;
+                st.totalCost += extraCost;
+            }
+
+            saveState();
+            renderStations();
+        }
+
+        function stopAndBillStation(stId) {
+            const st = state.stations.find(s => s.id === stId);
+            if(!st) return;
+
+            let pointsEarned = 0;
+            if (st.customerId) {
+                const customer = state.customers.find(c => c.id === st.customerId);
+                if (customer) {
+                    customer.visits = (customer.visits || 0) + 1;
+                    // Only earn points on paid (money) sessions - redeeming points shouldn't also earn points
+                    if (st.paymentMethod !== 'points') {
+                        const hoursPlayed = st.durationMs / (1000 * 60 * 60);
+                        pointsEarned = Math.round(hoursPlayed * LOYALTY_POINTS_PER_HOUR);
+                        customer.loyaltyPoints = (customer.loyaltyPoints || 0) + pointsEarned;
+                    }
+                }
+            }
+
+            const paidWithPoints = st.paymentMethod === 'points';
+
+            document.getElementById('receiptTitle').innerText = 'STATION GAMING BILL';
+            document.getElementById('receiptDetails').innerHTML = `
+                <div class="flex justify-between"><span>Station:</span> <span class="font-bold">${st.name}</span></div>
+                <div class="flex justify-between"><span>Player:</span> <span>${st.customer}</span></div>
+                <div class="flex justify-between"><span>Players:</span> <span>${st.players}</span></div>
+                <div class="flex justify-between"><span>Allocated Time:</span> <span>${(st.durationMs / (1000 * 60)).toFixed(0)} Mins</span></div>
+                <div class="flex justify-between"><span>Payment Method:</span> <span>${paidWithPoints ? `Loyalty Points (${st.pointsUsed || 0} pts)` : 'Cash / Card'}</span></div>
+                ${pointsEarned > 0 ? `<div class="flex justify-between text-emerald-400"><span>Loyalty Points Earned:</span> <span>+${pointsEarned} pts</span></div>` : ''}
+                <div class="flex justify-between text-slate-400 text-[10px]"><span>Date/Time:</span> <span>${new Date().toLocaleString()}</span></div>
+            `;
+            document.getElementById('receiptTotalAmount').innerText = paidWithPoints ? 'Rs. 0.00 (Paid via Points)' : `Rs. ${st.totalCost}.00`;
+
+            logSale({
+                type: 'station',
+                description: `${st.name} (${st.players} Player${st.players > 1 ? 's' : ''}) - ${st.customer}`,
+                amount: paidWithPoints ? 0 : st.totalCost,
+                paymentMethod: st.paymentMethod || 'money',
+                customerId: st.customerId || null,
+                customerName: st.customer
+            });
+
+            // Remove session from active stations
+            state.stations = state.stations.filter(s => s.id !== stId);
+            saveState();
+            renderStations();
+
+            toggleModal('receiptModal', true);
+        }
+
+        function renderCustomers() {
+            const tbody = document.getElementById('customersTableBody');
+            tbody.innerHTML = '';
+
+            state.customers.forEach(c => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="p-4 font-bold text-white">${c.name}</td>
+                    <td class="p-4 text-cyan-400">${c.ign || '-'}</td>
+                    <td class="p-4 text-slate-300">${c.phone}</td>
+                    <td class="p-4">
+                        <span class="text-xs font-orbitron px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                            ${c.tier}
+                        </span>
+                    </td>
+                    <td class="p-4 text-slate-300 font-orbitron">${c.visits} Visits</td>
+                    <td class="p-4 font-orbitron text-emerald-400 font-bold">Rs. ${c.wallet}</td>
+                    <td class="p-4 font-orbitron text-yellow-400 font-bold"><i class="fa-solid fa-star text-[10px] mr-1"></i>${c.loyaltyPoints || 0} pts</td>
+                    <td class="p-4 text-right">
+                        <button onclick="addCustomerCredit('${c.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 px-2.5 py-1 rounded-lg transition mr-1">
+                            + Credit
+                        </button>
+                        <button onclick="adjustCustomerPoints('${c.id}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-yellow-400 px-2.5 py-1 rounded-lg transition mr-1">
+                            + Points
+                        </button>
+                        <button onclick="deleteCustomer('${c.id}')" class="text-xs text-slate-500 hover:text-pink-400 p-1">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openAddCustomerModal() {
+            document.getElementById('custNameInput').value = '';
+            document.getElementById('custIgnInput').value = '';
+            document.getElementById('custPhoneInput').value = '';
+            toggleModal('customerModal', true);
+        }
+
+        function saveCustomer() {
+            const name = document.getElementById('custNameInput').value.trim();
+            const ign = document.getElementById('custIgnInput').value.trim();
+            const phone = document.getElementById('custPhoneInput').value.trim();
+            const tier = document.getElementById('custTierInput').value;
+
+            if(!name) return;
+
+            state.customers.push({
+                id: 'c_' + Date.now(),
+                name, ign, phone, tier, visits: 1, wallet: 0, loyaltyPoints: 0
+            });
+
+            saveState();
+            toggleModal('customerModal', false);
+            renderCustomers();
+        }
+
+        function addCustomerCredit(cId) {
+            const amount = prompt("Enter Wallet Credit Amount (Rs.):");
+            if(!amount) return;
+            const num = parseFloat(amount);
+            if(isNaN(num) || num <= 0) return;
+
+            const cust = state.customers.find(c => c.id === cId);
+            if(cust) {
+                cust.wallet += num;
+                saveState();
+                renderCustomers();
+            }
+        }
+
+        function adjustCustomerPoints(cId) {
+            const amount = prompt("Enter Loyalty Points to add (use a negative number to deduct):");
+            if(!amount) return;
+            const num = parseInt(amount);
+            if(isNaN(num) || num === 0) return;
+
+            const cust = state.customers.find(c => c.id === cId);
+            if(cust) {
+                cust.loyaltyPoints = Math.max(0, (cust.loyaltyPoints || 0) + num);
+                saveState();
+                renderCustomers();
+            }
+        }
+
+        function deleteCustomer(cId) {
+            state.customers = state.customers.filter(c => c.id !== cId);
+            saveState();
+            renderCustomers();
+        }
+
+        function toggleModal(id, show) {
+            const modal = document.getElementById(id);
+            if(show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function closeReceiptModal() {
+            toggleModal('receiptModal', false);
+        }
+
+        function openInstallModal() {
+            toggleModal('installModal', true);
+        }
+
+        function updateBadges() {
+            const activeCount = state.stations.length;
+            const tournBadge = document.getElementById('activeTournamentsBadge');
+            const stationBadge = document.getElementById('activeSessionsBadge');
+
+            if(activeCount > 0) {
+                stationBadge.innerText = activeCount;
+                stationBadge.classList.remove('hidden');
+            } else {
+                stationBadge.classList.add('hidden');
+            }
+
+            if(state.tournaments.length > 0) {
+                tournBadge.innerText = state.tournaments.length;
+                tournBadge.classList.remove('hidden');
+            } else {
+                tournBadge.classList.add('hidden');
+            }
+        }
+
+        /* ---------- Revenue Reports ---------- */
+
+        let reportRangeState = { preset: 'all', from: null, to: null };
+        let reportChartInstance = null;
+
+        function toDateInputValue(d) {
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function setReportRangePreset(preset) {
+            const now = new Date();
+            let from = null;
+            let to = new Date(now);
+            to.setHours(23, 59, 59, 999);
+
+            if (preset === 'today') {
+                from = new Date(now); from.setHours(0, 0, 0, 0);
+            } else if (preset === 'week') {
+                const day = now.getDay(); // 0 = Sunday
+                const diffToMonday = (day === 0 ? 6 : day - 1);
+                from = new Date(now); from.setDate(now.getDate() - diffToMonday); from.setHours(0, 0, 0, 0);
+            } else if (preset === 'month') {
+                from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+            } else if (preset === 'all') {
+                from = null;
+            }
+
+            reportRangeState = { preset, from, to };
+
+            document.getElementById('reportFromDate').value = from ? toDateInputValue(from) : '';
+            document.getElementById('reportToDate').value = toDateInputValue(to);
+
+            ['rangeToday', 'rangeWeek', 'rangeMonth', 'rangeAll'].forEach(id => document.getElementById(id).classList.remove('active'));
+            const btnId = { today: 'rangeToday', week: 'rangeWeek', month: 'rangeMonth', all: 'rangeAll' }[preset];
+            if (btnId) document.getElementById(btnId).classList.add('active');
+
+            renderReports();
+        }
+
+        function onCustomReportRangeChange() {
+            const fromVal = document.getElementById('reportFromDate').value;
+            const toVal = document.getElementById('reportToDate').value;
+
+            ['rangeToday', 'rangeWeek', 'rangeMonth', 'rangeAll'].forEach(id => document.getElementById(id).classList.remove('active'));
+
+            reportRangeState = {
+                preset: 'custom',
+                from: fromVal ? new Date(fromVal + 'T00:00:00') : null,
+                to: toVal ? new Date(toVal + 'T23:59:59') : new Date()
+            };
+
+            renderReports();
+        }
+
+        function getFilteredSales() {
+            const { from, to } = reportRangeState;
+            return (state.sales || []).filter(s => {
+                if (from && s.timestamp < from.getTime()) return false;
+                if (to && s.timestamp > to.getTime()) return false;
+                return true;
+            }).sort((a, b) => b.timestamp - a.timestamp);
+        }
+
+        function renderReports() {
+            const sales = getFilteredSales();
+            const { from, to, preset } = reportRangeState;
+
+            let label = 'All Time';
+            if (preset === 'today') label = 'Today';
+            else if (preset === 'week') label = 'This Week';
+            else if (preset === 'month') label = 'This Month';
+            else if (preset === 'custom') label = `${from ? from.toLocaleDateString() : 'Start'} — ${to ? to.toLocaleDateString() : 'Now'}`;
+            document.getElementById('reportRangeLabel').innerText = label;
+
+            const cashSales = sales.filter(s => s.amount > 0);
+            const totalRevenue = cashSales.reduce((sum, s) => sum + s.amount, 0);
+            const stationRevenue = sales.filter(s => s.type === 'station').reduce((sum, s) => sum + s.amount, 0);
+            const mediaRevenue = sales.filter(s => s.type === 'media').reduce((sum, s) => sum + s.amount, 0);
+            const pointsSessions = sales.filter(s => s.type === 'station' && s.paymentMethod === 'points').length;
+            const avgSale = cashSales.length ? totalRevenue / cashSales.length : 0;
+
+            const summaryCards = [
+                { label: 'Total Revenue', value: `Rs. ${totalRevenue.toFixed(2)}`, icon: 'fa-sack-dollar', color: 'text-emerald-400' },
+                { label: 'Transactions', value: `${sales.length}`, icon: 'fa-receipt', color: 'text-cyan-400' },
+                { label: 'Avg. Sale', value: `Rs. ${avgSale.toFixed(2)}`, icon: 'fa-chart-simple', color: 'text-purple-400' },
+                { label: 'Points-Paid Sessions', value: `${pointsSessions}`, icon: 'fa-star', color: 'text-yellow-400' },
+            ];
+            document.getElementById('reportSummaryCards').innerHTML = summaryCards.map(c => `
+                <div class="glass-card p-4 rounded-2xl border border-slate-800">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-orbitron uppercase text-slate-400">${c.label}</span>
+                        <i class="fa-solid ${c.icon} ${c.color}"></i>
+                    </div>
+                    <div class="font-orbitron font-black text-xl sm:text-2xl ${c.color}">${c.value}</div>
+                </div>
+            `).join('');
+
+            const categories = [
+                { label: 'Station Rentals', value: stationRevenue, color: 'bg-cyan-500' },
+                { label: 'Media Sales & Copies', value: mediaRevenue, color: 'bg-amber-500' },
+            ];
+            const maxCat = Math.max(1, ...categories.map(c => c.value));
+            document.getElementById('reportCategoryBreakdown').innerHTML = categories.map(c => `
+                <div>
+                    <div class="flex justify-between text-xs text-slate-300 mb-1">
+                        <span>${c.label}</span>
+                        <span class="font-orbitron font-bold">Rs. ${c.value.toFixed(2)}</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div class="h-full ${c.color}" style="width: ${(c.value / maxCat * 100).toFixed(1)}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            const tbody = document.getElementById('reportTransactionsBody');
+            document.getElementById('reportTxCount').innerText = `${sales.length} transaction${sales.length !== 1 ? 's' : ''}`;
+            tbody.innerHTML = sales.length ? sales.map(s => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3 text-slate-400 text-xs">${new Date(s.timestamp).toLocaleString()}</td>
+                    <td class="p-3"><span class="text-[10px] font-orbitron px-2 py-0.5 rounded-full ${s.type === 'station' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'} uppercase">${s.type}</span></td>
+                    <td class="p-3 text-slate-200 text-xs">${s.description}</td>
+                    <td class="p-3 text-xs text-slate-400">${s.paymentMethod === 'points' ? `<i class="fa-solid fa-star text-yellow-400 mr-1"></i>Points` : 'Cash / Card'}</td>
+                    <td class="p-3 text-right font-orbitron font-bold ${s.amount > 0 ? 'text-emerald-400' : 'text-slate-500'}">${s.amount > 0 ? `Rs. ${s.amount.toFixed(2)}` : 'Rs. 0.00'}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="5" class="p-6 text-center text-xs text-slate-500">No transactions in this range.</td></tr>`;
+
+            renderReportChart(cashSales);
+        }
+
+        function renderReportChart(cashSales) {
+            const canvas = document.getElementById('reportChart');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            let spanDays = 0;
+            if (cashSales.length) {
+                const times = cashSales.map(s => s.timestamp);
+                spanDays = (Math.max(...times) - Math.min(...times)) / (1000 * 60 * 60 * 24);
+            }
+            const groupByMonth = spanDays > 45;
+
+            const buckets = {};
+            cashSales.forEach(s => {
+                const d = new Date(s.timestamp);
+                const key = groupByMonth
+                    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                buckets[key] = (buckets[key] || 0) + s.amount;
+            });
+
+            const sortedKeys = Object.keys(buckets).sort();
+            const labels = sortedKeys.map(k => {
+                if (groupByMonth) {
+                    const [y, m] = k.split('-');
+                    return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+                }
+                const [y, m, d] = k.split('-');
+                return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            });
+            const data = sortedKeys.map(k => buckets[k]);
+
+            if (reportChartInstance) reportChartInstance.destroy();
+
+            reportChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['No data'],
+                    datasets: [{
+                        label: 'Revenue (Rs.)',
+                        data: data.length ? data : [0],
+                        backgroundColor: 'rgba(0, 240, 255, 0.5)',
+                        borderColor: '#00f0ff',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#94a3b8', font: { family: 'Rajdhani' } }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function resetDataToDefault() {
+            if(confirm("Reset all data back to AGZ initial default state? This will overwrite the database.")) {
+                state.prices = DEFAULT_PRICES;
+                state.media = DEFAULT_MEDIA;
+                state.tournaments = DEFAULT_TOURNAMENTS;
+                state.customers = migrateCustomers(DEFAULT_CUSTOMERS);
+                state.stations = migrateStations(DEFAULT_STATIONS);
+                state.sales = [];
+                saveState();
+                renderPrices();
+                populateCalcDropdown();
+                updateBadges();
+                switchView('prices');
+            }
+        }
+
+        window.onload = function() {
+            checkExistingSession();
+        };
+    </script>
+</body>
+</html>
