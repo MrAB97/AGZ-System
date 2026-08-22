@@ -1221,10 +1221,9 @@
         }
 
         // === Backend API connection ===
-        // Points at the PHP API (see backend/ folder). Update these if you place
-        // the backend folder somewhere other than htdocs/agz-backend.
-        const API_BASE = 'http://localhost/agz-backend/api.php';
-        const AUTH_BASE = 'http://localhost/agz-backend/auth.php';
+        // Relative paths: same-origin serverless functions on Vercel (see api/).
+        const API_BASE = '/api/data';
+        const AUTH_BASE = '/api/auth';
 
         let currentUser = null;
 
@@ -1305,7 +1304,7 @@
 
                 onLoginSuccess(data.user);
             } catch (err) {
-                errorBox.innerText = 'Could not reach the server. Is XAMPP (Apache + MySQL) running?';
+                errorBox.innerText = 'Could not reach the server.';
                 errorBox.classList.remove('hidden');
                 btn.disabled = false;
                 btn.innerText = 'Sign In';
