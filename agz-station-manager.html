@@ -1235,17 +1235,18 @@
         }
 
         function syncResource(resource, data) {
-            // Fire-and-forget: the UI already reflects the in-memory state immediately
-            // after any change, so callers of saveState() don't need to wait on this.
-            fetch(`${API_BASE}?resource=${resource}`, {
+            return fetch(`${API_BASE}?resource=${resource}`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).then(res => {
-                if (res.status === 401) { showLoginScreen(); return; }
-                if (!res.ok) return res.json().then(d => console.error(`Failed to save "${resource}":`, d.error || res.status));
-            }).catch(err => console.error(`Failed to save "${resource}" to the backend:`, err));
+            }).then(async res => {
+                if (res.status === 401) { showLoginScreen(); throw new Error('Not authenticated'); }
+                if (!res.ok) {
+                    const details = await res.json().catch(() => ({}));
+                    throw new Error(details.error || `HTTP ${res.status}`);
+                }
+            });
         }
 
         /* ---------- Authentication ---------- */
@@ -1477,7 +1478,8 @@
                     fetchResource('sales'),
                 ]);
 
-                const isFirstRun = prices.length === 0 && media.length === 0 && tournaments.length === 0 && customers.length === 0;
+                const backendAlreadyInitialized = localStorage.getItem('agz-backend-initialized') === 'true';
+                const isFirstRun = !backendAlreadyInitialized && prices.length === 0 && media.length === 0 && tournaments.length === 0 && customers.length === 0;
 
                 state.prices = migratePrices(prices);
                 state.media = media.length ? media : DEFAULT_MEDIA;
@@ -1492,7 +1494,10 @@
 
                 // First time ever connecting to a fresh database: seed it with the starter/demo data
                 // so it isn't empty on the next load.
-                if (isFirstRun) saveState();
+                if (isFirstRun) {
+                    await saveState();
+                }
+                localStorage.setItem('agz-backend-initialized', 'true');
             } catch (err) {
                 console.error('Failed to load data from backend:', err);
                 document.body.innerHTML = `
@@ -1505,14 +1510,21 @@
             }
         }
 
+        let saveQueue = Promise.resolve();
+
         function saveState() {
-            syncResource('prices', state.prices);
-            syncResource('media', state.media);
-            syncResource('tournaments', state.tournaments);
-            syncResource('customers', state.customers);
-            syncResource('stations', state.stations);
-            syncResource('sales', state.sales);
+            const resources = ['prices', 'media', 'tournaments', 'customers', 'stations', 'sales'];
+            const snapshot = Object.fromEntries(resources.map(resource => [
+                resource,
+                JSON.parse(JSON.stringify(state[resource] || []))
+            ]));
+
+            saveQueue = saveQueue
+                .catch(() => {})
+                .then(() => Promise.all(resources.map(resource => syncResource(resource, snapshot[resource]))))
+                .catch(err => console.error('Failed to save state to the backend:', err));
             updateBadges();
+            return saveQueue;
         }
 
         // Records a completed transaction for the Reports tab. Doesn't call saveState() itself -
