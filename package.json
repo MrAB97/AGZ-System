@@ -2,14 +2,14 @@
   "name": "agz-system",
   "version": "1.0.0",
   "private": true,
-  "description": "AGZ Game Zone - station manager (Vercel + Postgres)",
+  "description": "AGZ Game Zone - station manager (Vercel + MongoDB)",
   "scripts": {
-    "dev": "vercel dev"
+    "start": "vercel dev"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cookie": "^0.6.0",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.5"
+    "mongodb": "^6.21.0"
   }
 }

@@ -1,4 +1,4 @@
-// AGZ Game Zone - First-Time Admin Setup (Vercel serverless function + Postgres)
+// AGZ Game Zone - First-Time Admin Setup (Vercel serverless function + MongoDB)
 //
 // Run this ONCE after the schema is created, to create (or reset) an admin
 // account with a properly hashed password:
@@ -14,7 +14,7 @@
 // back down. With no SETUP_TOKEN configured, this endpoint always refuses.
 
 const bcrypt = require('bcryptjs');
-const { getPool } = require('../lib/db');
+const { getDb, nextUserId } = require('../lib/db');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -44,16 +44,25 @@ module.exports = async function handler(req, res) {
   }
 
   const hash = bcrypt.hashSync(password, 10);
-  const pool = getPool();
+  const db = await getDb();
+  const users = db.collection('users');
 
-  await pool.query(
-    `INSERT INTO users (username, password_hash, display_name, role)
-     VALUES ($1, $2, $3, 'admin')
-     ON CONFLICT (username) DO UPDATE SET
-       password_hash = EXCLUDED.password_hash,
-       display_name = EXCLUDED.display_name`,
-    [username, hash, displayName]
-  );
+  const existing = await users.findOne({ username });
+  if (existing) {
+    await users.updateOne(
+      { username },
+      { $set: { password_hash: hash, display_name: displayName, role: 'admin' } }
+    );
+  } else {
+    await users.insertOne({
+      id: await nextUserId(db),
+      username,
+      password_hash: hash,
+      display_name: displayName,
+      role: 'admin',
+      created_at: new Date(),
+    });
+  }
 
   res.status(200).json({
     success: true,
